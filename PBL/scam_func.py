@@ -6,6 +6,7 @@ print('+++ IMPORTING MY FUNCTIONS +++')
 import numpy as np
 import xarray as xr
 from scipy.interpolate import interp1d
+import scipy as spy
 import pandas as pd
 import datetime as dt
 import metpy.constants as mconst
@@ -14,9 +15,33 @@ import matplotlib.pyplot as mp
 #from copy import deepcopy
 
 ### Constants ###
-
+rg = mconst.dry_air_gas_constant
+r_gas = 1000*mconst.dry_air_gas_constant.magnitude   # Specific gas constant for dry air (kg/joule)
 cp_air = mconst.dry_air_spec_heat_press.magnitude # Specific heat for dry air
-p0 = mconst.pot_temp_ref_press.magnitude
+Lv = mconst.water_heat_vaporization.magnitude       # Latent heat of vaporization
+
+p0 = 100.*mconst.pot_temp_ref_press.magnitude # P0 but in Pa
+
+r_cp = r_gas/cp_air    # r/cp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ################################
@@ -36,7 +61,7 @@ def plot1d_ts_scam(rinfo):
 	plot1d_dic['LHFLX']  = ['Latent Heat Flux','W/m2',1.,0.,400,'wqsfc',2.501e6]
 	plot1d_dic['SHFLX']  = ['Sensible Heat Flux','W/m2',1.,0., 300,'wtsfc',cp_air]
 	plot1d_dic['TS']     = ['Surface Temperature','K',1., 290., 310.,'',1.]
-	plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 3000.,'zi_q',1.] # zi_t: height of max theta gradient
+	plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 3000.,'zi_t',1.] # zi_t: height of max theta gradient
 	plot1d_dic['PBLH_DTHL'] = ['Boundary Layer Depth (dthl/dz)','meters',1., 0., 3000.,'zi_t',1.] # zi_t: height of max theta gradient
 	plot1d_dic['PRECL']  = ['Large-Scale Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
 	plot1d_dic['PRECC']  = ['Convective Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
@@ -44,7 +69,7 @@ def plot1d_ts_scam(rinfo):
 	plot1d_dic['CAPE']   = ['CAPE','J/kg',1., 0., 800.,'',1.]
     
 	
-	
+## Data Frame ##	
 	plot1d_df = pd.DataFrame.from_dict(plot1d_dic, orient='index',
                                        columns=['long_name','units','vscale','ymin','ymax','var_les','lscale'])
 #	plot1d_df = plot1d_df.style.set_properties(**{
@@ -79,10 +104,10 @@ def plot1d_ts_scam(rinfo):
 			; ymax = plot1d_df.loc[var]['ymax']
             
 		var_les = plot1d_df.loc[var]['var_les'] 
-        
+
+		
 # Legend side        
 		vleg_x = 0.085 if var in vleg_left else 0.97
-
        
         # Loop cases and plot
 		for icase in range(0,ncases):
@@ -91,6 +116,7 @@ def plot1d_ts_scam(rinfo):
 				continue
 			scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4')
             
+			
     ## SCAM time and var
 			if sfile_nums[icase] !='LES': 
 				time = scam_icase.time
@@ -115,6 +141,7 @@ def plot1d_ts_scam(rinfo):
         
 					# Normalize to ilev bottom being Z of surface
 					zlevm = zlevm-dzbot ; zlevi = zlevi-dzbot	
+					
 		
 					# VARIABLE FOR GRADIENT #
 					pvar = scam_icase['Q'].isel(lat=0,lon=0) # Variable dvardp
@@ -183,7 +210,7 @@ def plot1d_ts_scam(rinfo):
            
 			mp.plot(hour_frac,pvar)
 			mp.ylim([ymin,ymax])
-			mp.xlim([6.,18.])
+			mp.xlim([5.,18.])
 			
 				            
     # Observed
@@ -210,18 +237,32 @@ def plot1d_ts_scam(rinfo):
 		mp.savefig(sfig_stub+'_plot1d_ts_scam_'+var+'.png', dpi=300)     
 		mp.close()
 	return
-		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ############################################
 #  2D Time/Height Timeseries Plotting info. #
 ############################################ 
 
 
-def plot2d_ts_scam():
+def plot2d_ts_scam(rinfo):
 
 	plot2d_dic = {}
 
 	plot2d_dic['T'] = ['Temperature', 
-		1.,260.,305.,-.5,.5,'',1.,scam_in['T'].attrs['units']]
+		1.,260.,305.,-.5,.5,'',1.,'K']
 	
 	plot2d_dic['RELHUM'] = ['Relative Humidity',
 		1.,10., 120.,-10.,10.,'',1.,'%']
@@ -231,9 +272,9 @@ def plot2d_ts_scam():
 		1000., 1., 12.,-1,1.,'q',1000.,'g/kg']
  
 	plot2d_dic['TH'] = ['Potential Temperature', \
-		1., 295, 305.,-.5,.5,'t',1.,scam_in['T'].attrs['units']]
+		1., 295, 305.,-.5,.5,'t',1.,'K']
 	plot2d_dic['THL'] = ['Liquid Water Potential Temperature', \
-		1., 270, 310.,-2.,2.,'thl',1.,scam_in['T'].attrs['units']]
+		1., 270, 310.,-2.,2.,'thl',1.,'K']
     
 	plot2d_dic['DCQ'] = ['Humidity Tendencies - Moist Processes', \
 		1000., -5., 5.,-1.,1.,'',1.,'g/kg/day']
@@ -264,19 +305,19 @@ def plot2d_ts_scam():
 		1000.*86400, -100., 100.,-20.,20.,'',1.,'g/kg/day']
                                                        
 	plot2d_dic['WPRTP_CLUBB'] = ['w,q - Flux Covariance - CLUBB', \
-		1., -0., 600.,-100.,100.,'wq_r',Lv,scam_in['WPRTP_CLUBB'].attrs['units']]
+		1., -0., 600.,-100.,100.,'wq_r',Lv,'W/m^2']
 	plot2d_dic['WPTHLP_CLUBB'] = ['w,thl - Flux Covariance - CLUBB', \
-		1., -100., 100.,-5.,5.,'wt_r',cp_air,scam_in['WPTHLP_CLUBB'].attrs['units']]
+		1., -100., 100.,-5.,5.,'wt_r',cp_air,'W/m^2']
 	plot2d_dic['WPTHVP_CLUBB'] = ['w,thv - Flux Covariance - CLUBB', \
-		1., -100., 100.,-5.,5.,'wq_s',1.,scam_in['WPTHVP_CLUBB'].attrs['units']]
+		1., -100., 100.,-5.,5.,'wq_s',1.,'W/m^2']
     
 	plot2d_dic['THLP2_CLUBB'] = ['T^2 - Variance - CLUBB', \
-		1., 0., 0.05,-0.01,0.01,'tt_r',1.,scam_in['THLP2_CLUBB'].attrs['units']]   
+		1., 0., 0.05,-0.01,0.01,'tt_r',1.,'K^2']   
 	plot2d_dic['WP2_CLUBB']   = ['w^2 - Variance - CLUBB', \
-		1., 0., 2.,-0.5,0.5,'ww_r',1.,scam_in['WP2_CLUBB'].attrs['units']] 
+		1., 0., 2.,-0.5,0.5,'ww_r',1.,'m^2/s^2'] 
 
 	plot2d_dic['WP3_CLUBB']   = ['w^3 - Skewness  - CLUBB', \
-		1., 0., 0.5,-0.05,0.05,'www_r',1.,scam_in['WP3_CLUBB'].attrs['units']]
+		1., 0., 0.5,-0.05,0.05,'www_r',1.,'w^3/s^3']
     
  
 ### Vars that do not have -ve values in their full field.                             
@@ -290,6 +331,19 @@ def plot2d_ts_scam():
 #    print(plot2d_df.style.set_table_styles([{'selector':'','props':[('border','4px solid #7a7')]}]))
 #   print(plot2d_df)
 
+	## Unbundle ##
+	pvars_ts2d = np.array(rinfo['2dvars'])
+	srun_names =  np.array(rinfo['Run Name']) # Has to be numpy so it can get appended
+	sfiles_in = np.array(rinfo['File Name'])
+	sfile_nums = np.array(rinfo['File Num'])
+	zoffset = np.array(rinfo['zoffset'])
+	sfig_stub = rinfo['Stub Figs']
+
+
+	## Derived vars.	
+	ncases = srun_names.size
+	
+	
 	nclevs = 20 # Number of contour levels
 	ppmin = 500. ; ppmax = 1000. # Pressure (mb) plot range
 	ttmin = 6. ; ttmax = 15.
@@ -310,7 +364,8 @@ def plot2d_ts_scam():
 	for var in pvars_ts2d:
 
 		pvar = None
-               
+		
+		
 ## VAR specific scaling and contour intervals ##
         
 		vscale = plot2d_df.loc[var,'vscale'] ; cmin = plot2d_df.loc[var,'cmin'] ; cmax = plot2d_df.loc[var,'cmax']
@@ -332,7 +387,7 @@ def plot2d_ts_scam():
         
     
 ### First case plot (could be only plot) ###
-		scam_icase = xr.open_dataset(scam_files_in[0],engine='netcdf4') 
+		scam_icase = xr.open_dataset(sfiles_in[0],engine='netcdf4') 
 
 # Plev choice (fixing PS from first time)
 		plevm = scam_icase['hyam']*p0 + scam_icase['hybm']*scam_icase['PS'].isel(lat=0,lon=0,time=0)
@@ -344,8 +399,7 @@ def plot2d_ts_scam():
 		zlevm = 1000.*mpc.pressure_to_height_std(plevm)
 		zlevi = 1000.*mpc.pressure_to_height_std(plevi)
 		dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1])
-    
-        
+            
 # Normalize to ilev bottom being Z of surface
 		zlevm = zlevm-dzbot
 		zlevi = zlevi-dzbot
@@ -383,7 +437,7 @@ def plot2d_ts_scam():
         
 		print('---- PLOTTING 2D TIME/HEIGHT PLOTS------ >>>  ')
 		print(' - ',var,' - ',pvar.attrs['long_name'],' -- cmin/cmax --> ',cmin,cmax)               
-		print('Case = ',scam_file_nums[0],'Range=',np.min(pvar.values),np.max(pvar.values))
+		print('Case = ',sfile_nums[0],'Range=',np.min(pvar.values),np.max(pvar.values))
         
         
         
@@ -428,9 +482,9 @@ def plot2d_ts_scam():
            
 			pvarp = None
            # Open file (SCAM or LES) 
-			scam_icase = xr.open_dataset(scam_files_in[icase],engine='netcdf4')
+			scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4')
             
-			if scam_file_nums[icase] != 'LES': 
+			if sfile_nums[icase] != 'LES': 
                
                 # Plev choice (fixing PS from first time)
 				plevm = scam_icase['hyam']*p0 + scam_icase['hybm']*scam_icase['PS'].isel(lat=0,lon=0,time=0)
@@ -476,15 +530,16 @@ def plot2d_ts_scam():
 				hour_frac = hour_frac.values
 				hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac)
     
-				print('Case = ',scam_file_nums[icase],'Range=',np.min(pvarp.values),np.max(pvarp.values))
+				print('Case = ',sfile_nums[icase],'Range=',np.min(pvarp.values),np.max(pvarp.values))
             
             # Remove initial column values (anom) or case0 (diff)
 				if ptype == 'anom' : pvarp = pvarp-pvar0 ; pcmap = cmap_anom
 				if ptype == 'diff' : pvarp = pvarp-pvarp[:,0] ; pcmap = cmap_anom
                     
                     
-# LES specific and then            
-			if scam_file_nums[icase] =='LES': 
+# LES Specific   
+
+			if sfile_nums[icase] =='LES': 
                                                                      
 				lscale = plot2d_df.loc[var,'lscale']
 				les_tstart = scam_icase['ts'] # Start time (local?) seconds after 00
@@ -493,7 +548,8 @@ def plot2d_ts_scam():
 				les_toffset = 0. # Strange time stuff in LES?
 				hour_frac_les = (les_tstart+les_time)/3600.+les_toffset  # Transform into hours
 				hour_frac = hour_frac_les 
-                                                                     
+
+				
             ## Variable ##
                
 				var_les = plot2d_df.loc[var,'var_les']      
@@ -527,9 +583,9 @@ def plot2d_ts_scam():
 
 #### Actual Plots ####
               
-			if scam_file_nums[icase] !='LES': 
+			if sfile_nums[icase] !='LES': 
 				plt0 = ax1.contourf(hour_frac,zlev,pvarp_sm,levels=aplevels,cmap=pcmap,extend='both')
-			if scam_file_nums[icase] =='LES': 
+			if sfile_nums[icase] =='LES': 
 				# Unravel 2d arrays into 1D onstructre 1D full array for time
 #                pvarp_sm = pvarp_sm.transpose()
 				pvarp_sm = pvarp_sm.values.ravel()
@@ -547,13 +603,18 @@ def plot2d_ts_scam():
 			if icase==ncases-1: 
 				mp.subplots_adjust(right=0.9)  
 				mp.colorbar(plt0, extend='both',cax=fig1.add_axes([0.92,  0.13, 0.02, 0.76]))
-			if scam_file_nums[icase] !='LES': 
+			if sfile_nums[icase] !='LES': 
 				plt0 = ax1.contour(hour_frac,zlev,pvarp_sm,levels=aplevels, colors='black',linewidths=0.75)
-			if scam_file_nums[icase] =='LES': 
-				plt0 = ax1.tricontour(hour_frac, zlev, pvarp_sm, levels=aplevels, colors='black',linewidths=0.75)
-                
-               
-			ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
+				ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
+			if sfile_nums[icase] =='LES': 
+				plt0 = ax1.tricontour(hour_frac, zlev, pvarp_sm, levels=aplevels, colors='black',linewidths=0.75) # Contours
+				ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
+				plt0 = ax1.tricontour(hour_frac, zlev, zlev, levels=zlev_line,linestyle="dotted",colors='black',linewidths=0.2) # 'Contour' model level heights
+#				print(hour_frac)
+#				print(zlev)
+#				mp.hlines(zlev[0:256], min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
+				   
+#				ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
                         
 			ax1.set_title(srun_names[icase])
 			ax1.set_xlabel("Local Time (hr)")
@@ -564,7 +625,7 @@ def plot2d_ts_scam():
 #            ax1.invert_yaxis()  
             
 ## Plot ##
-		mp.savefig(scam_fig_stub+'_plot2d_ts_scam_'+var+'_'+ptype+'.png', dpi=300)              
+		mp.savefig(sfig_stub+'_plot2d_ts_scam_'+var+'_'+ptype+'.png', dpi=300)              
 		mp.show()
         
 		del pvar       
@@ -572,7 +633,21 @@ def plot2d_ts_scam():
         
   
         
-        
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+9
         
 ###############################################
 # 2D Snapshot/Height Timeseries Plotting info.
@@ -806,6 +881,19 @@ def plot1d_snap_scam():
 
         HTML(anim.to_html5_video())           
 
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+
+		
+		
 #########################################
 # 1D/TIME ANIMATIONS
 #########################################
@@ -926,7 +1014,16 @@ def plot1d_anim_scam():
     del pvar
     
    
-print('+++ ANIMATION +++')
+
+
+
+
+
+
+
+##############################
+######### ANIMATION ##########
+##############################
 
 def animation_test():
 
@@ -950,3 +1047,88 @@ def animation_test():
 						frames=100, interval=40, blit=True)
 	mp.close(anim._fig)
 	HTML(anim.to_html5_video())   
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+######################################################
+### PBL Height Calculations Based on q/th gradient ###
+######################################################
+	
+	
+def pbl_grad_calc():
+	
+        
+	pres,zhgt = vcoord_scam('mid')
+	var_in = scam_in.T*(p0/pres)**r_cp if vsas in 'zi_t' else scam_in.Q
+            
+# Gradient wrt height not pressure
+	var_in['lev'] = zhgt[0,:].values # Add height instead of pressure for this variable (BE CAREFUL)           
+	dvardz = var_in.differentiate("lev") # Find field gradient wrt HEIGHT (over limited region)	
+            
+
+# Locate gradient maximum ain a bounded regin            
+	ztop_mask = 3000 ; zbot_mask = 100  # Restrict to approx region of PBL top
+	dvardz = dvardz.where((dvardz.lev < ztop_mask) & (dvardz.lev > zbot_mask)) # MASK IN LOCAL PBL REGION
+	dvardz_kmin = dvardz.argmax(axis=1) if vsas in 'zi_t' else dvardz.argmin(axis=1) # Find the index of the max/min in the vertical
+#           
+	dvardz_zmin = zhgt[:,dvardp_kmin[:].values] # Gradient min/max height
+	var = dvardz_zmin
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+######################################################
+###  Vertical Coordinates From SCAM                ###
+######################################################	
+	
+del vcoord_scam(imlev):
+	    
+    plevm = scam_in['hyam']*p0 + scam_in['hybm']*scam_in['PS'] # Mid level
+    plevi = scam_in['hyai']*p0 + scam_in['hybi']*scam_in['PS'] # Interface level
+    
+    plevm.attrs['units'] = "Pa"
+    plevi.attrs['units'] = "Pa"
+
+# Height with standard atmosphere
+    zlevm = plevm
+
+    zlevm_vals = 1000.*mpc.pressure_to_height_std(plevm).magnitude
+    zlevi_vals = 1000.*mpc.pressure_to_height_std(plevi).magnitude
+    dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1]).magnitude
+    
+    zlevm = plevm.copy(deep=True)
+    zlevi = plevi.copy(deep=True)
+    
+    zlevm[:,:] = zlevm_vals
+    zlevi[:,:] = zlevi_vals
+    
+    # Normalize to ilev bottom being Z of surface
+    zlevm = zlevm-dzbot
+    zlevi = zlevi-dzbot
+    
+    zlevm = zlevm.transpose() # Get time to be first dimension
+    zlevi = zlevi.transpose()
+
+        
+    v_coord = [plevm,zlevm] if imlev in 'mid' else [plevi,zlevi] # Return dep. on interface/mid
+        
+    return v_coord
