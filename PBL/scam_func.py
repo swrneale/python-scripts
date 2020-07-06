@@ -58,11 +58,12 @@ def plot1d_ts_scam(rinfo):
 #	cp_air = mconst.dry_air_spec_heat_press.magnitude # Specific heat for dry air
 	
     # VAR -> vscale/ymin/ymax/p_var/lscale
-	plot1d_dic['LHFLX']  = ['Latent Heat Flux','W/m2',1.,0.,400,'wqsfc',2.501e6]
+	plot1d_dic['LHFLX']  = ['Latent Heat Flux','W/m2',1.,0.,400,'wqsfc',Lv]
 	plot1d_dic['SHFLX']  = ['Sensible Heat Flux','W/m2',1.,0., 300,'wtsfc',cp_air]
 	plot1d_dic['TS']     = ['Surface Temperature','K',1., 290., 310.,'',1.]
 	plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 3000.,'zi_t',1.] # zi_t: height of max theta gradient
-	plot1d_dic['PBLH_DTHL'] = ['Boundary Layer Depth (dthl/dz)','meters',1., 0., 3000.,'zi_t',1.] # zi_t: height of max theta gradient
+	plot1d_dic['PBLH_DTH'] = ['Boundary Layer Depth (dth/dz max)','meters',1., 0., 3000.,'zi_t',1.] # zi_t: height of max theta gradient
+	plot1d_dic['PBLH_DQ'] = ['Boundary Layer Depth (dq/dz max)','meters',1., 0., 3000.,'zi_q',1.] # zi_t: height of max theta gradient
 	plot1d_dic['PRECL']  = ['Large-Scale Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
 	plot1d_dic['PRECC']  = ['Convective Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
 	plot1d_dic['FLNS']   = ['Surface Net Short-wave Radiation','W/m2',1., 200., 800.,'',1.]
@@ -119,8 +120,8 @@ def plot1d_ts_scam(rinfo):
 			
     ## SCAM time and var
 			if sfile_nums[icase] !='LES': 
+			
 				time = scam_icase.time
-                
 				hour_frac = time.time.dt.hour+time.time.dt.minute/60.-zoffset
 				hour_frac = hour_frac.values
 				hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac) # Makes continuous time when day goes into next day.
@@ -1058,17 +1059,19 @@ def animation_test():
 	
 	
 	
+	
+	
 ######################################################
 ### PBL Height Calculations Based on q/th gradient ###
 ######################################################
 	
 	
-def pbl_grad_calc():
+def pbl_grad_calc(var_grad,scam_in):
 	
-        
-	pres,zhgt = vcoord_scam('mid')
-	var_in = scam_in.T*(p0/pres)**r_cp if vsas in 'zi_t' else scam_in.Q
-            
+# Var grad -> variable to be used gradient (Q or TH(eta))
+	pres,zhgt = vcoord_scam('mid',scam_in)
+	var_in = scam_in.T*(p0/pres)**r_cp if var_grad in 'TH' else scam_in.Q
+
 # Gradient wrt height not pressure
 	var_in['lev'] = zhgt[0,:].values # Add height instead of pressure for this variable (BE CAREFUL)           
 	dvardz = var_in.differentiate("lev") # Find field gradient wrt HEIGHT (over limited region)	
@@ -1077,11 +1080,12 @@ def pbl_grad_calc():
 # Locate gradient maximum ain a bounded regin            
 	ztop_mask = 3000 ; zbot_mask = 100  # Restrict to approx region of PBL top
 	dvardz = dvardz.where((dvardz.lev < ztop_mask) & (dvardz.lev > zbot_mask)) # MASK IN LOCAL PBL REGION
-	dvardz_kmin = dvardz.argmax(axis=1) if vsas in 'zi_t' else dvardz.argmin(axis=1) # Find the index of the max/min in the vertical
-#           
-	dvardz_zmin = zhgt[:,dvardp_kmin[:].values] # Gradient min/max height
-	var = dvardz_zmin
+	dvardz_kmin = dvardz.argmax(axis=1) if var_grad in 'TH' else dvardz.argmin(axis=1) # Find the index of the max/min in the vertical
+
+# Map to a height level    
+	var = zhgt.isel(lev=dvardz_kmin)
 	
+	return (var)
 	
 	
 	
@@ -1100,35 +1104,37 @@ def pbl_grad_calc():
 ###  Vertical Coordinates From SCAM                ###
 ######################################################	
 	
-del vcoord_scam(imlev):
-	    
-    plevm = scam_in['hyam']*p0 + scam_in['hybm']*scam_in['PS'] # Mid level
-    plevi = scam_in['hyai']*p0 + scam_in['hybi']*scam_in['PS'] # Interface level
-    
-    plevm.attrs['units'] = "Pa"
-    plevi.attrs['units'] = "Pa"
+def vcoord_scam(imlev,scam_in):
+
+	plevm = scam_in['hyam']*p0 + scam_in['hybm']*scam_in['PS'] # Mid level
+	plevi = scam_in['hyai']*p0 + scam_in['hybi']*scam_in['PS'] # Interface level
+	
+	plevm.attrs['units'] = "Pa"
+	plevi.attrs['units'] = "Pa"
 
 # Height with standard atmosphere
-    zlevm = plevm
 
-    zlevm_vals = 1000.*mpc.pressure_to_height_std(plevm).magnitude
-    zlevi_vals = 1000.*mpc.pressure_to_height_std(plevi).magnitude
-    dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1]).magnitude
+	zlevm = plevm
+
+	zlevm_vals = 1000.*mpc.pressure_to_height_std(plevm).magnitude
+	zlevi_vals = 1000.*mpc.pressure_to_height_std(plevi).magnitude
+	dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1]).magnitude
     
-    zlevm = plevm.copy(deep=True)
-    zlevi = plevi.copy(deep=True)
+	zlevm = plevm.copy(deep=True)
+	zlevi = plevi.copy(deep=True)
     
-    zlevm[:,:] = zlevm_vals
-    zlevi[:,:] = zlevi_vals
+	zlevm[:,:] = zlevm_vals
+	zlevi[:,:] = zlevi_vals
     
-    # Normalize to ilev bottom being Z of surface
-    zlevm = zlevm-dzbot
-    zlevi = zlevi-dzbot
+# Normalize to ilev bottom being Z of surface
+
+	zlevm = zlevm-dzbot
+	zlevi = zlevi-dzbot
     
-    zlevm = zlevm.transpose() # Get time to be first dimension
-    zlevi = zlevi.transpose()
+	zlevm = zlevm.transpose() # Get time to be first dimension
+	zlevi = zlevi.transpose()
 
         
-    v_coord = [plevm,zlevm] if imlev in 'mid' else [plevi,zlevi] # Return dep. on interface/mid
+	v_coord = [plevm,zlevm] if imlev in 'mid' else [plevi,zlevi] # Return dep. on interface/mid
         
-    return v_coord
+	return v_coord
