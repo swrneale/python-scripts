@@ -32,18 +32,6 @@ r_cp = r_gas/cp_air    # r/cp
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 ################################
 #   1D Timeseries plotting     #
 ################################
@@ -61,9 +49,10 @@ def plot1d_ts_scam(rinfo):
 	plot1d_dic['LHFLX']  = ['Latent Heat Flux','W/m2',1.,0.,400,'wqsfc',Lv]
 	plot1d_dic['SHFLX']  = ['Sensible Heat Flux','W/m2',1.,0., 300,'wtsfc',cp_air]
 	plot1d_dic['TS']     = ['Surface Temperature','K',1., 290., 310.,'',1.]
-	plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 3000.,'zi_t',1.] # zi_t: height of max theta gradient
-	plot1d_dic['PBLH_DTH'] = ['Boundary Layer Depth (dth/dz max)','meters',1., 0., 3000.,'zi_t',1.] # zi_t: height of max theta gradient
-	plot1d_dic['PBLH_DQ'] = ['Boundary Layer Depth (dq/dz max)','meters',1., 0., 3000.,'zi_q',1.] # zi_t: height of max theta gradient
+	plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 2000.,'zi_t',1.] # zi_t: height of max theta gradient
+	plot1d_dic['PBLH_DTH'] = ['Boundary Layer Depth (dth/dz max)','meters',1., 0., 2000.,'zi_t',1.] # zi_t: height of max theta gradient
+	plot1d_dic['PBLH_DQ'] = ['Boundary Layer Depth (dq/dz max)','meters',1., 0., 2000.,'zi_q',1.] # zi_t: height of max theta gradient
+	plot1d_dic['PBL_DQMAX'] = ['Boundary Layer dq/dz Max.','g/kg/km',1., 0., 2000.,'',1.] # zi_t: height of max theta gradient
 	plot1d_dic['PRECL']  = ['Large-Scale Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
 	plot1d_dic['PRECC']  = ['Convective Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
 	plot1d_dic['FLNS']   = ['Surface Net Short-wave Radiation','W/m2',1., 200., 800.,'',1.]
@@ -77,10 +66,10 @@ def plot1d_ts_scam(rinfo):
 #		'background-color': 'grey',
 #		'font-size': '20pt'})
 	
-	print(plot1d_df)
+	print(plot1d_df) 
     
 	
-	vleg_left = ['PBLH'] # Vars. to put legend on the left not right.
+	vleg_left = ['PBLH','PBLH_DTH','PBLH_DQ'] # Vars. to put legend on the left not right.
     
 ## Unbundle ##
 	pvars_ts1d = np.array(rinfo['1dvars'])
@@ -126,7 +115,8 @@ def plot1d_ts_scam(rinfo):
 				hour_frac = hour_frac.values
 				hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac) # Makes continuous time when day goes into next day.
                 
-				if var == 'PBLH_DTHL':  # PBL derived from d(thl/dz)
+				
+				if var in ['PBLH_DTHL','PBLH_DQ','PBL_DQMAX']:  # PBL derived from d(thl/dz)
 					
 					# Set up height instead of pressure
 					
@@ -145,7 +135,9 @@ def plot1d_ts_scam(rinfo):
 					
 		
 					# VARIABLE FOR GRADIENT #
-					pvar = scam_icase['Q'].isel(lat=0,lon=0) # Variable dvardp
+					if var in ['PBLH_DQ','PBL_DQMAX'] : pbl_var = 'Q'
+				
+					pvar = scam_icase[pbl_var].isel(lat=0,lon=0) # Variable dvardp
 					pvar['lev'] = zlevm # Add height instead of pressure for this variable (BE CAREFUL)
 					
 					dvardp = pvar.differentiate("lev") # Find field gradient wrt HEIGHT!
@@ -153,22 +145,21 @@ def plot1d_ts_scam(rinfo):
 #					dvardp.loc[:,985.:] = 0.  # Restrict to a specific pressure region
 #					dvardp.loc[:,:500.] = 0.
 				
-					dvardp_kmin = dvardp.argmin(axis=1) # Find the index of the maxium in the vertical
-					
+					dvardp_kmin = dvardp.argmin(axis=1) # Find the index of the maxium in the vertical					
 					dvardp_pmin = dvardp.lev[dvardp_kmin[:]] # Pressure of max/min level.
 					
 					
-					 # Plev choice (fixing PS from first time, as it does not vary with time.)
-					
-					
-				
-					
+					# Plev choice (fixing PS from first time, as it does not vary with time.)
+										
 					dvardp_zmin = zlevm[dvardp_kmin]  # Height of min/max
 					
-					mp.plot(hour_frac,dvardp_zmin) # Temp. plot.
+					if var=='PBL_DQMAX' : pbl_varplot=dvardp
+					if var in ['PBLH_DTHL','PBLH_DQ'] :  pbl_varplot=dvardp_zmin
+					
+					mp.plot(hour_frac,pbl_varplot) # Temp. plot.
 					mp.ylim([0.,2500.])
 					mp.xlim([5.,18.])
-					mp.show()
+#					mp.show()
 
 					pvar.attrs['long_name'] = 'Height of max. Liq. Water Potential Temperature gradient'
 					pvar.attrs['units'] = 'm' 
@@ -202,42 +193,45 @@ def plot1d_ts_scam(rinfo):
                     
 				print('-- ',var_les,' ---- PLOTTING 1D TIME PLOTS ------>>>  ',plot1d_df.loc[var]['long_name'])
 				print(sfile_nums[icase], ' --ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values))
-                    
+                
 				pvar = fles_int(hour_frac)
                    
                 
     ## Merge back in for uniform plotting 
     
-           
 			mp.plot(hour_frac,pvar)
 			mp.ylim([ymin,ymax])
 			mp.xlim([5.,18.])
 			
+# End of case loop here #
 				            
-    # Observed
+# Observed?
 
-		ceil_obs   = [500.,300.,400.,400,500.,750.,1200.,1200.,1250.,1350.,1500.,1600.,1500.,1300.]
-		ceil_obs_t = [5.,6,7,8,9,10,11,12,13,14,15,16,17,18]
-		mp.plot(ceil_obs_t,ceil_obs,'+',color='black')
- #       mp.ylim([ymin,ymax])
- #       mp.xlim([6.,18.])
-        
+		plot_names = srun_names
+
+		if var in ['PBLH_DTHL','PBLH_DQ']:
+		
+			ceil_obs   = [500.,300.,400.,400,500.,750.,1200.,1200.,1250.,1350.,1500.,1600.,1500.,1300.]
+			ceil_obs_t = [5.,6,7,8,9,10,11,12,13,14,15,16,17,18]
+			
+			mp.plot(ceil_obs_t,ceil_obs,'+',color='black')
+			plot_names = np.append(srun_names,"Ceilometer")
+
     # Axes stuff
 		mp.xlabel("Local Time (hr)")
 		mp.ylabel(plot1d_df.loc[var]['units'])
 		mp.title(plot1d_df.loc[var]['long_name'])
 
-		plot_names = np.append(srun_names,"Ceilometer")
-		print(plot_names)
 			
 		mp.legend(labels=plot_names, ncol=1, fontsize="medium",
 			columnspacing=1.0, labelspacing=0.8, bbox_to_anchor= (vleg_x, 0.83),
 			handletextpad=0.5, handlelength=1.5, borderaxespad=-5,
 			framealpha=1.0,frameon=True)
 #        mp.show()
-		mp.savefig(sfig_stub+'_plot1d_ts_scam_'+var+'.png', dpi=300)     
+		mp.savefig(sfig_stub+'_plot1d_ts_scam_'+var+'.png', dpi=300)
+		mp.show()
 		mp.close()
-	return
+
 
 
 
@@ -347,7 +341,7 @@ def plot2d_ts_scam(rinfo):
 	
 	nclevs = 20 # Number of contour levels
 	ppmin = 500. ; ppmax = 1000. # Pressure (mb) plot range
-	ttmin = 6. ; ttmax = 15.
+	ttmin = 6. ; ttmax = 18.
 	zzmin = 0. ; zzmax = 3000.
     
 	ptype = 'full' # Full/anom/diff 
@@ -610,7 +604,7 @@ def plot2d_ts_scam(rinfo):
 			if sfile_nums[icase] =='LES': 
 				plt0 = ax1.tricontour(hour_frac, zlev, pvarp_sm, levels=aplevels, colors='black',linewidths=0.75) # Contours
 				ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
-				plt0 = ax1.tricontour(hour_frac, zlev, zlev, levels=zlev_line,linestyle="dotted",colors='black',linewidths=0.2) # 'Contour' model level heights
+				plt0 = ax1.tricontour(hour_frac, zlev, zlev, levels=zlev_line,colors='black',linewidths=0.2) # 'Contour' model level heights
 #				print(hour_frac)
 #				print(zlev)
 #				mp.hlines(zlev[0:256], min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
