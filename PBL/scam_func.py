@@ -19,6 +19,7 @@ rg = mconst.dry_air_gas_constant
 r_gas = 1000*mconst.dry_air_gas_constant.magnitude   # Specific gas constant for dry air (kg/joule)
 cp_air = mconst.dry_air_spec_heat_press.magnitude # Specific heat for dry air
 Lv = mconst.water_heat_vaporization.magnitude       # Latent heat of vaporization
+grav = mconst.earth_gravity.magnitude
 
 p0 = 100.*mconst.pot_temp_ref_press.magnitude # P0 but in Pa
 
@@ -649,16 +650,17 @@ def plot2d_ts_scam(rinfo):
 ###############################################
 
 
-def plot1d_snap_scam():
+def plot1d_snap_scam(rinfo):
+    
     plot_snap_dic = {}
     
-    plot_snap_dic['T']      = [1.,260.,305.,-20.,20.,scam_in['T'].attrs['units']]
+    plot_snap_dic['T']      = [1.,260.,305.,-20.,20.,'K']
     plot_snap_dic['RELHUM'] = [1.,10., 120.,-100.,100.,'%']
     plot_snap_dic['CLOUD']  = [100., 0., 100.,-80.,80.,'%']
     plot_snap_dic['Q']      = [1000., 1., 12.,-5,5.,'g/kg']
  
-    plot_snap_dic['TH']  = [1., 290, 310.,-20.,20.,scam_in['T'].attrs['units']]
-    plot_snap_dic['THL']  = [1., 270, 310.,-20.,20.,scam_in['T'].attrs['units']]
+    plot_snap_dic['TH']  = [1., 290, 310.,-20.,20.,'K;']
+    plot_snap_dic['THL']  = [1., 270, 310.,-20.,20.,'K']
     
     plot_snap_dic['DCQ']  = [1000., -5., 5.,-5.,5.,'g/kg/day']
     plot_snap_dic['DTCOND']  = [86400., -10., 10.,-10.,10.,'K/day']   
@@ -678,14 +680,14 @@ def plot1d_snap_scam():
     plot_snap_dic['STEND_CLUBB']    = [86400./1000., -20, 20,-2.,2.,'K/day'] #J/kg.s -> K/day
     plot_snap_dic['RVMTEND_CLUBB']  = [1000.*86400, -50., 50.,-20.,20.,'g/kg/day']
                                                        
-    plot_snap_dic['WPRTP_CLUBB'] = [1., -0., 600.,-50.,50.,scam_in['WPRTP_CLUBB'].attrs['units']]
-    plot_snap_dic['WPTHLP_CLUBB'] = [1., -100., 100.,-50.,50.,scam_in['WPTHLP_CLUBB'].attrs['units']]
-    plot_snap_dic['WPTHVP_CLUBB'] = [1., -100., 100.,-50.,50.,scam_in['WPTHVP_CLUBB'].attrs['units']]
+    plot_snap_dic['WPRTP_CLUBB'] = [1., -0., 600.,-50.,50.,'W/m^2']
+    plot_snap_dic['WPTHLP_CLUBB'] = [1., -100., 100.,-50.,50.,'W/m^2']
+    plot_snap_dic['WPTHVP_CLUBB'] = [1., -100., 100.,-50.,50.,'W/m^2']
     
-    plot_snap_dic['THLP2_CLUBB'] = [1., 0., 0.05,-50.,50.,scam_in['THLP2_CLUBB'].attrs['units']]   
-    plot_snap_dic['WP2_CLUBB']      = [1., 0., 1.,-0.5,0.5,scam_in['WP2_CLUBB'].attrs['units']] 
+    plot_snap_dic['THLP2_CLUBB'] = [1., 0., 0.05,-50.,50.,'K^2']   
+    plot_snap_dic['WP2_CLUBB']      = [1., 0., 1.,-0.5,0.5,'w^3/s^3'] 
 
-    plot_snap_dic['WP3_CLUBB']      = [1., 0., 0.5,-0.2,0.2,scam_in['WP3_CLUBB'].attrs['units']]
+    plot_snap_dic['WP3_CLUBB']      = [1., 0., 0.5,-0.2,0.2,'w^3/s^3']
    
 # Global stuff
    
@@ -695,9 +697,24 @@ def plot1d_snap_scam():
     
     var_anim = 'THL'
     run_anim = '101c'
-    
-    
     pvar_anim = None
+    pvars_snap = np.array(rinfo['snapvars'])
+
+
+## Unbundle ##
+    pvars_ts2d = np.array(rinfo['2dvars'])
+    srun_names =  np.array(rinfo['Run Name']) # Has to be numpy so it can get appended
+    sfiles_in = np.array(rinfo['File Name'])
+    sfile_nums = np.array(rinfo['File Num'])
+    zoffset = np.array(rinfo['zoffset'])
+    sfig_stub = rinfo['Stub Figs']
+    tsnaps = rinfo['Snap Times']
+
+	## Derived vars.	
+    ncases = srun_names.size 
+    ntsnaps = tsnaps.size
+    
+    
     
 ##########################
 ## VARIABLE LOOP #########
@@ -724,7 +741,6 @@ def plot1d_snap_scam():
         
         
         
-        
 ############################
 ## LOOP CASES AND SUBLOTS ##
 ############################
@@ -732,11 +748,10 @@ def plot1d_snap_scam():
         nn = len(fig1.axes)
 
         for icase in range(0,ncases):
-
             
             pvar = None
             
-            scam_icase = xr.open_dataset(scam_files_in[icase],engine='netcdf4') 
+            scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4') 
             # Vertical grid estimate.
             plevm = scam_icase['hyam']*p0 + scam_icase['hybm']*scam_icase['PS'].isel(lat=0,lon=0,time=0)
             
@@ -834,11 +849,11 @@ def plot1d_snap_scam():
      
 # Save off variables/case for animation
 
-        print(scam_file_nums[icase],' ',run_anim,' ',var,' ',var_anim)
-        if var == var_anim and scam_file_nums[icase] == run_anim: pvar_anim = pvar 
+        print(sfile_nums[icase],' ',run_anim,' ',var,' ',var_anim)
+        if var == var_anim and sfile_nums[icase] == run_anim: pvar_anim = pvar 
         
 #        mp.show()
-        mp.savefig(scam_fig_stub+'_plot1d_snap_scam_'+var+'.png', dpi=300)    
+        mp.savefig(sfig_stub+'_plot1d_snap_scam_'+var+'.png', dpi=300)    
 
         del pvar # Reset pvar array
 
