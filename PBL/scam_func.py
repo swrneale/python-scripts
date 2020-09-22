@@ -50,10 +50,10 @@ def plot1d_ts_scam(rinfo):
     plot1d_dic['LHFLX']  = ['Latent Heat Flux','W/m2',1.,0.,400,'wqsfc',Lv]
     plot1d_dic['SHFLX']  = ['Sensible Heat Flux','W/m2',1.,0., 300,'wtsfc',cp_air]
     plot1d_dic['TS']     = ['Surface Temperature','K',1., 290., 310.,'',1.]
-    plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 2000.,'zi_t',1.] # zi_t: height of max theta gradient
-    plot1d_dic['PBLH_DTH'] = ['Boundary Layer Depth (dth/dz max)','meters',1., 0., 2000.,'zi_t',1.] # zi_t: height of max theta gradient
-    plot1d_dic['PBLH_DQ'] = ['Boundary Layer Depth (dq/dz max)','meters',1., 0., 2000.,'zi_q',1.] # zi_t: height of max theta gradient
-    plot1d_dic['PBL_DQMAX'] = ['Boundary Layer dq/dz Max.','g/kg/km',1., 0., 2000.,'',1.] # zi_t: height of max theta gradient
+    plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 2500.,'zi_t',1.] # zi_t: height of max theta gradient
+    plot1d_dic['PBLH_DTH'] = ['Boundary Layer Depth (dth/dz max)','meters',1., 0., 2500.,'zi_t',1.] # zi_t: height of max theta gradient
+    plot1d_dic['PBLH_DQ'] = ['Boundary Layer Depth (dq/dz max)','meters',1., 0., 2500.,'zi_q',1.] # zi_t: height of max theta gradient
+    plot1d_dic['PBL_DQMAX'] = ['Boundary Layer dq/dz Max.','g/kg/km',1000.*1000, -100, 0.,'',1.] # Min value of dq/dz
     plot1d_dic['PRECL']  = ['Large-Scale Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
     plot1d_dic['PRECC']  = ['Convective Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
     plot1d_dic['FLNS']   = ['Surface Net Short-wave Radiation','W/m2',1., 200., 800.,'',1.]
@@ -89,7 +89,7 @@ def plot1d_ts_scam(rinfo):
 
 
     for var in pvars_ts1d:
-        pvar = None
+        
 
         vscale = plot1d_df.loc[var]['vscale'], ; ymin = plot1d_df.loc[var]['ymin'] \
             ; ymax = plot1d_df.loc[var]['ymax']
@@ -102,9 +102,10 @@ def plot1d_ts_scam(rinfo):
 
         # Loop cases and plot
         for icase in range(0,ncases):
-
+            pvar = None
             if (srun_names[icase] == 'LES' and var_les == ''): 
                 continue
+            print(sfiles_in[icase])
             scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4')
 
 
@@ -123,19 +124,6 @@ def plot1d_ts_scam(rinfo):
                     plevm,zlevm = vcoord_scam('mid',scam_icase)
                     plevi,zlevi = vcoord_scam('int',scam_icase)
 
-                    #					plevm = scam_icase['hyam']*p0 + scam_icase['hybm']*scam_icase['PS'].isel(lat=0,lon=0,time=0)					
-                    #					plevi = scam_icase['hyai']*p0 + scam_icase['hybi']*scam_icase['PS'].isel(lat=0,lon=0,time=0)
-
-                    #					plevm.attrs['units'] = "Pa"   ;   plevi.attrs['units'] = "Pa"
-
-                    # Height with standard atmosphere
-                    #					zlevm = 1000.*mpc.pressure_to_height_std(plevm)
-                    #					zlevi = 1000.*mpc.pressure_to_height_std(plevi)
-                    #					dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1])  
-
-                    # Normalize to ilev bottom being Z of surface
-                    #					zlevm = zlevm-dzbot ; zlevi = zlevi-dzbot	
-
 
 					# VARIABLE FOR GRADIENT #
                     if var in ['PBLH_DQ','PBL_DQMAX'] : pbl_var = 'Q'
@@ -148,37 +136,20 @@ def plot1d_ts_scam(rinfo):
                     
                     dvardz = pvar.differentiate("lev") # Find field gradient wrt HEIGHT!
 #                   
-                    print(dvardz)
+            
                     dvardz.loc[:,100:] = 0.  # Restrict to a specificheight region
                     dvardz.loc[:,:3000.] = 0.
-                    print(dvardz.values)
+                  
                     
                     dvardz_kmin = dvardz.argmin(axis=1) # Find the index of the maxium in the vertical		
                     dvardz_zmin = dvardz.lev[dvardz_kmin[:]] # Height level of max/min level.
                     dvardz_ptop = dvardz.min(axis=1) # Actual value at min/max level.
-
-                    # Plev choice (fixing PS from first time, as it does not vary with time.)
-                  
                     
-#                    for ic,iv in enumerate(dvardz_kmin.values) : # Overwrite for value of gradient at dvardz_zmin
-#                        print(iv)
-#                        dvardz_ptop[ic] = dvardz[ic,iv]  # Height of min/max
-#                        print(dvardz_zmin[ic,iv].values)
-                      
-#                    print(dvardz_ptop)
-            
-                    if var=='PBL_DQMAX' : pbl_varplot=dvardz_ptop
-#                    if var in ['PBLH_DTHL','PBLH_DQ'] :  pbl_varplot=dvardp_zmin
+                    if var=='PBL_DQMAX' : pvar=dvardz_ptop*vscale # Scale for plotting
 
-                    mp.plot(hour_frac,dvardz_ptop) # Temp. plot.
-#                    mp.ylim([-1e-6,1e-6])
-                    mp.xlim([5.,18.])
-                    mp.show()
 
                     pvar.attrs['long_name'] = 'Height of max. Liq. Water Potential Temperature gradient'
                     pvar.attrs['units'] = 'm' 
-
-
 					
 					
                 #				with xr.set_options(keep_attrs=True) and pvar is None: 
@@ -190,32 +161,52 @@ def plot1d_ts_scam(rinfo):
                 print(sfile_nums[icase], ' --ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values))
 
                 ## LES time (map to SCAM time) - Assume preceded by SCAM case to interpolate to.
-                if sfile_nums[icase] =='LES': 
+                
+            if sfile_nums[icase] =='LES':
+                
+                ## Time stuff first
+                les_tstart = scam_icase['ts'] # Start time (local?) seconds after 00
+                les_time = scam_icase['time'] # Time (from start?) in seconds
+
+                les_toffset = -0. # Strange time stuff in LES
+                hour_frac_les = (les_tstart+les_time)/3600.+les_toffset  # Transform into hours
+                hour_frac = hour_frac_les
+                
+                ## Specfici quantity based on Q
+                if var in ['PBL_DQMAX']:
+
+                    data_les = scam_icase['q'] # Read in data # 
+                    print(data_les)
+                    np_les = scam_icase.sizes['nz']
+                    data_les = data_les*lscale
+
+                    plev_les = scam_icase['p']
+                    plev = 0.01*plev_les
+                    zlev = scam_icase['zu']
+
+                    pvarp = data_les       
+                
+                if pvar is None: # Read in if special cases above not matched
                     lscale = plot1d_df.loc[var,'lscale']
-                    les_tstart = scam_icase['ts'] # Start time (local?) seconds after 00
-                    les_time = scam_icase['time'] # Time (from start?) in seconds
-
-                    les_toffset = -0. # Strange time stuff in LES
-                    hour_frac_les = (les_tstart+les_time)/3600.+les_toffset  # Transform into hours
-
                     with xr.set_options(keep_attrs=True): 
                         pvar = scam_icase[var_les]
                     pvar = pvar*lscale
+               
+                # INterpolate to SCAM time.
+      
+                fles_int = spy.interpolate.interp1d(hour_frac_les.values,pvar,bounds_error=False)
 
-                    # INterpolate to SCAM time.
-                    fles_int = spy.interpolate.interp1d(hour_frac_les.values,pvar,bounds_error=False)
+#                print('-- ',var_les,' ---- PLOTTING 1D TIME PLOTS ------>>>  ',plot1d_df.loc[var]['long_name'])
+#                print(sfile_nums[icase], ' --ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values))
 
-                    print('-- ',var_les,' ---- PLOTTING 1D TIME PLOTS ------>>>  ',plot1d_df.loc[var]['long_name'])
-                    print(sfile_nums[icase], ' --ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values))
-
-                    pvar = fles_int(hour_frac)
+                pvar = fles_int(hour_frac)
 
                 
-    ## Merge back in for uniform plotting 
+## Merge back in for uniform plotting 
     
-#            mp.plot(hour_frac,pvar)
-#            mp.ylim([ymin,ymax])
-#            mp.xlim([5.,18.])
+            mp.plot(hour_frac,pvar)
+            mp.ylim([ymin,ymax])
+            mp.xlim([5.,20.])
 			
 # End of case loop here #
 				            
@@ -360,7 +351,7 @@ def plot2d_ts_scam(rinfo):
 
     ptype = 'full' # Full/anom/diff 
     cmap_full = 'Purples'
-    cmap_anom = 'PRGn'
+    cmap_anom = 'RdYlBu_r'
 
     ## TIME/HEIGHT PLOTTING ##
 
@@ -436,9 +427,9 @@ def plot2d_ts_scam(rinfo):
 
 
         ### Determine Vertical Coord/Dim (lev/ilev) and time ###
-
-        plev = plevi if 'ilev' in pvar.dims else plevm
-        zlev = zlevi if 'ilev' in pvar.dims else zlevm
+        ## For scam needs to be 1 dimensional each for contourf
+        plev = plevi[0,:] if 'ilev' in pvar.dims else plevm[0,:]
+        zlev = zlevi[0,:] if 'ilev' in pvar.dims else zlevm[0,:]
         time = scam_icase.time
 
         #        time_plot = time.time.dt.monotonic
@@ -462,7 +453,7 @@ def plot2d_ts_scam(rinfo):
         pvar0 = vscale*pvar
 
         #        pvarp = pvarp-pvarp[:,0] # Remove initial column values
-
+        
         plt0 = ax1.contourf(hour_frac,zlev,pvar0,levels=plevels,cmap=pcmap,extend='both')   
         if ptype !='full': mp.colorbar(plt0, extend='both')
 
@@ -499,50 +490,23 @@ def plot2d_ts_scam(rinfo):
 
             if sfile_nums[icase] != 'LES':
 
-                plevm,zlevm = vcoord('mid',scam_icase)
-                plevi,zlevi = vcoord('int',scam_icase)
-
-                # Plev choice (fixing PS from first time)
-        #				plevm = scam_icase['hyam']*p0 + scam_icase['hybm']*scam_icase['PS'].isel(lat=0,lon=0,time=0)
-        #				plevi = scam_icase['hyai']*p0 + scam_icase['hybi']*scam_icase['PS'].isel(lat=0,lon=0,time=0)
-
-        #				plevm.attrs['units'] = "Pa"
-        #				plevi.attrs['units'] = "Pa"
-
-
-        # Height with standard atmosphere
-        #				zlevm = 1000.*mpc.pressure_to_height_std(plevm)
-        #				zlevi = 1000.*mpc.pressure_to_height_std(plevi)
-        #				dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1])  
-
-
-        # Normalize to ilev bottom being Z of surface
-        #				zlevm = zlevm-dzbot
-        #				zlevi = zlevi-dzbot
-
-                dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1])
-
-# Derived variable?           
-                pvarp = dev_vars_scam(var,scam_icase)
+                plevm,zlevm = vcoord_scam('mid',scam_icase)
+                plevi,zlevi = vcoord_scam('int',scam_icase)
+                
     
-#                if var in (['TH','THL']) : 
-#                    pvarp = scam_icase['T'].isel(lat=0,lon=0).transpose()*(p0/plevm)**r_cp 
-#                    pvarp.attrs['long_name'] = "Potential Temperature" 
-#                    pvarp.attrs['units'] = "K" 
-#                    theta = pvarp
-#                if var =='THL': 
-#                    pvarp = theta-(theta/scam_icase['T'].isel(lat=0,lon=0).transpose()) \
-#                        *(Lv/cp_air)*scam_icase['Q'].isel(lat=0,lon=0).transpose() 
-#                    pvarp.attrs['long_name'] = "Liq. Water Potential Temperature"
-
+                dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1])
+               
+# Derived variable?    
+                if var in (['TH','THL']) : 
+                    pvarp = dev_vars_scam(var,scam_icase)
 
                 if pvarp is None :  # Set pvar if not already.
                     pvarp = vscale*scam_icase[var].isel(lat=0,lon=0).transpose()
 
 
         ### Determine Vertical Coord (lev/ilev) + time ###
-                plev = plevi if 'ilev' in pvar.dims else plevm
-                zlev = zlevi if 'ilev' in pvar.dims else zlevm
+                plev = plevi[0,:] if 'ilev' in pvar.dims else plevm[0,:]
+                zlev = zlevi[0,:] if 'ilev' in pvar.dims else zlevm[0,:]
 
                 zlev_line = zlev
                 time = scam_icase.time
@@ -617,8 +581,8 @@ def plot2d_ts_scam(rinfo):
                 plt0 = ax1.tricontourf(hour_frac, zlev, pvarp_sm,levels=aplevels,cmap=pcmap,extend='both')
 
             # Squeeze in colorbar here so it doesn't get messed up by line contours
-        #            print(zlev_line[0:100])
-        #            mp.hlines(zlev_line, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
+      
+            mp.hlines(zlev_line, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
 
             if icase==ncases-1: 
                 mp.subplots_adjust(right=0.9)  
@@ -630,13 +594,12 @@ def plot2d_ts_scam(rinfo):
                 plt0 = ax1.tricontour(hour_frac, zlev, pvarp_sm, levels=aplevels, colors='black',linewidths=0.75) # Contours
                 ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
                 plt0 = ax1.tricontour(hour_frac, zlev, zlev, levels=zlev_line,colors='black',linewidths=0.2) # 'Contour' model level heights
-#				print(hour_frac)
-#				print(zlev)
-#				mp.hlines(zlev[0:256], min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
+
+            mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
 				   
 #				ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
-
-            ax1.set_title(srun_names[icase])
+            stitle = srun_names[icase] if sfile_nums[icase] !='LES' else (srun_names[icase]+'-LES')
+            ax1.set_title(stitle)
             ax1.set_xlabel("Local Time (hr)")
             ax1.set_ylim(zzmin,zzmax)
             ax1.set_xlim(ttmin, ttmax)  
@@ -1182,14 +1145,17 @@ def vcoord_scam(imlev,scam_in):
 	
 def dev_vars_scam(var_name,sfile_in):
     
-    if var_name in (['TH','THL']) : 
-        pvarp = scam_icase['T'].isel(lat=0,lon=0).transpose()*(p0/plevm)**r_cp 
-        pvarp.attrs['long_name'] = "Potential Temperature" 
-        pvarp.attrs['units'] = "K" 
-        theta = pvarp
-    if var =='THL': 
-        pvarp = theta-(theta/scam_icase['T'].isel(lat=0,lon=0).transpose()) \
-            *(Lv/cp_air)*scam_icase['Q'].isel(lat=0,lon=0).transpose() 
-        pvarp.attrs['long_name'] = "Liq. Water Potential Temperature"
-    
+    plevm = sfile_in['hyam']*p0 + sfile_in['hybm']*sfile_in['PS'].isel(lat=0,lon=0)
+    print(var_name)
+    if var_name in ['TH','THL'] : 
+        theta = sfile_in['T'].isel(lat=0,lon=0).transpose()*(p0/plevm)**r_cp 
+        theta.attrs['long_name'] = "Potential Temperature" 
+        theta.attrs['units'] = "K" 
+        dev_var = theta
+
+    if var_name =='THL': 
+        thetal = dev_var-(theta/sfile_in['T'].isel(lat=0,lon=0).transpose()) \
+            *(Lv/cp_air)*sfile_in['Q'].isel(lat=0,lon=0).transpose() 
+        dev_var.attrs['long_name'] = "Liq. Water Potential Temperature"
+        dev_var = thetal
     return (dev_var)
