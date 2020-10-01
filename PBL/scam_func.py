@@ -274,7 +274,9 @@ def plot2d_ts_scam(rinfo):
     plot2d_dic['TH'] = ['Potential Temperature', \
         1., 295, 305.,-.5,.5,'t',1.,'K']
     plot2d_dic['THL'] = ['Liquid Water Potential Temperature', \
-        1., 270, 310.,-2.,2.,'thl',1.,'K']
+        1., 270, 310.,-1.,1.,'thl',1.,'K']
+    plot2d_dic['THV'] = ['Virtual Potential Temperature', \
+        1., 295, 305.,-2.,2.,'tv',1.,'K']
 
     plot2d_dic['DCQ'] = ['Humidity Tendencies - Moist Processes', \
         1000., -5., 5.,-1.,1.,'',1.,'g/kg/day']
@@ -322,7 +324,7 @@ def plot2d_ts_scam(rinfo):
 
     ### Vars that do not have -ve values in their full field.                             
 
-    var_cmap0 = ['T','RELHUM','Q','CLOUD','THL','WPRTP_CLUBB','WP2_CLUBB','WP3_CLUBB','THLP2_CLUBB']
+    var_cmap0 = ['T','RELHUM','Q','CLOUD','THL','THV','WPRTP_CLUBB','WP2_CLUBB','WP3_CLUBB','THLP2_CLUBB']
     #    plot2d_df = pd.DataFrame(plot2d_dic,index=['vscale','cmin','cmax','acmin','acmax','units'])
 
     plot2d_df = pd.DataFrame.from_dict(plot2d_dic, orient='index', \
@@ -392,36 +394,14 @@ def plot2d_ts_scam(rinfo):
         plevm,zlevm = vcoord_scam('mid',scam_icase)
         plevi,zlevi = vcoord_scam('int',scam_icase)
 
-        # Plev choice (fixing PS from first time)
-#        plevm = scam_icase['hyam']*p0 + scam_icase['hybm']*scam_icase['PS'].isel(lat=0,lon=0,time=0)
-#        plevi = scam_icase['hyai']*p0 + scam_icase['hybi']*scam_icase['PS'].isel(lat=0,lon=0,time=0)
-#        plevm.attrs['units'] = "Pa"
-#        plevi.attrs['units'] = "Pa"
-
-        # Height with standard atmosphere
-#        zlevm = 1000.*mpc.pressure_to_height_std(plevm)
-#        zlevi = 1000.*mpc.pressure_to_height_std(plevi)
         dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1])
-
-        # Normalize to ilev bottom being Z of surface
-#        zlevm = zlevm-dzbot
-#        zlevi = zlevi-dzbot
 
 
         ### Derived Met variables ###
+        if var in ['TH','THL','THV'] : 
+            pvar = dev_vars_scam(var,scam_icase)
 
-        if var in (['TH','THL']) : 
-            pvar = scam_icase['T'].isel(lat=0,lon=0).transpose()*(p0/plevm)**r_cp 
-            pvar.attrs['long_name'] = 'Potential Temperature' 
-            pvar.attrs['units'] = 'K' 
-            theta = pvar
-
-        if var =='THL': 
-                pvar = theta-(theta/scam_icase['T'].isel(lat=0,lon=0).transpose()) \
-                    *(Lv/cp_air)*scam_icase['Q'].isel(lat=0,lon=0).transpose() 
-                pvar.attrs['long_name'] = 'Liq. Water Potential Temperature'
-                pvar.attrs['units'] = 'K' 
-
+        ### All other vars. ###    
         if pvar is None :  # Set pvar if not already.
             pvar = scam_icase[var].isel(lat=0,lon=0).transpose()
 
@@ -461,7 +441,7 @@ def plot2d_ts_scam(rinfo):
 
         ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
 
-        mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
+#        mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
         mp.suptitle(pvar.attrs['long_name']+(' - CLUBB' if 'CLUBB' in var else ' ')+' ('+plot2d_df.loc[var,'units']+')')
 
         ax1.set_title(srun_names[0])
@@ -497,7 +477,7 @@ def plot2d_ts_scam(rinfo):
                 dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1])
                
 # Derived variable?    
-                if var in (['TH','THL']) : 
+                if var in ['TH','THL','THV'] : 
                     pvarp = dev_vars_scam(var,scam_icase)
 
                 if pvarp is None :  # Set pvar if not already.
@@ -582,7 +562,7 @@ def plot2d_ts_scam(rinfo):
 
             # Squeeze in colorbar here so it doesn't get messed up by line contours
       
-            mp.hlines(zlev_line, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
+#            mp.hlines(zlev_line, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
 
             if icase==ncases-1: 
                 mp.subplots_adjust(right=0.9)  
@@ -595,7 +575,7 @@ def plot2d_ts_scam(rinfo):
                 ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
                 plt0 = ax1.tricontour(hour_frac, zlev, zlev, levels=zlev_line,colors='black',linewidths=0.2) # 'Contour' model level heights
 
-            mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
+#            mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
 				   
 #				ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
             stitle = srun_names[icase] if sfile_nums[icase] !='LES' else (srun_names[icase]+'-LES')
@@ -678,7 +658,7 @@ def plot1d_snap_scam(rinfo):
    
 # Global stuff
    
-    vleg_ul = ['TH','THL'] # Vars with leg in upper left
+    vleg_ul = ['TH','THL','THV'] # Vars with leg in upper left
     
     ppmin = 650. ; ppmax = 1000. # Pressure (mb) plot range    
     
@@ -746,16 +726,10 @@ def plot1d_snap_scam(rinfo):
             hour_frac = time.time.dt.hour+time.time.dt.minute/60.-zoffset
             
 ## Get Data ##
-            if var in (['TH','THL']): 
-                pvar = scam_icase['T']*(0.01*p0/plevm)**r_cp 
-                pvar.attrs['long_name'] = "Potential Temperature" 
-                pvar.attrs['units'] = "K" 
-                theta = pvar
-            if var =='THL': 
-                pvar = theta-(theta/scam_icase['T']) \
-                    *(Lv/cp_air)*scam_icase['Q'] 
-                pvar.attrs['long_name'] = "Liq. Water Potential Temperature"
-          
+            if var in ['TH','THL']: 
+                pvar = dev_vars_scam(var,scam_icase)
+               
+           
             if pvar is None :  # Set pvar if not already.
                 pvar = scam_icase[var]
 
@@ -765,18 +739,13 @@ def plot1d_snap_scam(rinfo):
 
             plevs = plevm.sel(lev=slice(ppmin, ppmax)) # Prange
             pvar =  pvar.sel(lev=slice(ppmin, ppmax)) # Prange
-            pvar =  pvar.isel(lat=0,lon=0) # remove lat/lon dims/transpose
+#            pvar =  pvar.isel(lat=0,lon=0) # remove lat/lon dims/transpose
 
 #  
             print('------ CASE ------>>>  ', \
                     srun_names[icase],' -- ',sfile_nums[icase],' -- ',var,' --- ', \
                     pvar.attrs['long_name'],' -- min/max --> ',  np.min(pvar.values),np.max(pvar.values))
 
-    
-    
-
-                           
- 
     
     
 ############################     
@@ -786,6 +755,7 @@ def plot1d_snap_scam(rinfo):
             for ii in range(0, ntsnaps): 
             
                 itt = np.min(np.where(hour_frac==tsnaps[ii])) # Plot at this time
+                print(pvar)
                 pvart = pvar[itt,:]
                 
                 
@@ -801,7 +771,7 @@ def plot1d_snap_scam(rinfo):
                          
                 if var not in ['T','TH','THL']: 
                     mp.vlines(0, 0, scam_icase[pvar.dims[1]].max(), linestyle="dashed",lw=1)
-                mp.hlines(0.01*plevs, min(pvart), max(pvart), linestyle="dotted",lw=0.04) # plev horizontal lines
+#                mp.hlines(0.01*plevs, min(pvart), max(pvart), linestyle="dotted",lw=0.04) # plev horizontal lines
                 
 ## PLOT PBLH IN PRESSURE ###
                 
@@ -1146,13 +1116,19 @@ def vcoord_scam(imlev,scam_in):
 def dev_vars_scam(var_name,sfile_in):
     
     plevm = sfile_in['hyam']*p0 + sfile_in['hybm']*sfile_in['PS'].isel(lat=0,lon=0)
-    print(var_name)
-    if var_name in ['TH','THL'] : 
-        theta = sfile_in['T'].isel(lat=0,lon=0).transpose()*(p0/plevm)**r_cp 
+   
+    if var_name in ['TH','THL','THV'] : 
+        theta = sfile_in['T'].isel(lat=0,lon=0).transpose()*(p0/plevm)**r_cp #
         theta.attrs['long_name'] = "Potential Temperature" 
         theta.attrs['units'] = "K" 
         dev_var = theta
-
+    print(var_name)
+    if var_name=='THV' : # (For dry air)
+        thetav = theta*(1.+0.61*sfile_in['Q'].isel(lat=0,lon=0).transpose())
+        thetav.attrs['long_name'] = "Virtual Potential Temperature" 
+        thetav.attrs['units'] = "K" 
+        dev_var = thetav   
+        
     if var_name =='THL': 
         thetal = dev_var-(theta/sfile_in['T'].isel(lat=0,lon=0).transpose()) \
             *(Lv/cp_air)*sfile_in['Q'].isel(lat=0,lon=0).transpose() 
