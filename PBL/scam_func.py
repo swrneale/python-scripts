@@ -50,10 +50,10 @@ def plot1d_ts_scam(rinfo):
     plot1d_dic['LHFLX']  = ['Latent Heat Flux','W/m2',1.,0.,400,'wqsfc',Lv]
     plot1d_dic['SHFLX']  = ['Sensible Heat Flux','W/m2',1.,0., 300,'wtsfc',cp_air]
     plot1d_dic['TS']     = ['Surface Temperature','K',1., 290., 310.,'',1.]
-    plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 2500.,'zi_t',1.] # zi_t: height of max theta gradient
+    plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 2800.,'zi_t',1.] # zi_t: height of max theta gradient
     plot1d_dic['PBLH_DTH'] = ['Boundary Layer Depth (dth/dz max)','meters',1., 0., 2500.,'zi_t',1.] # zi_t: height of max theta gradient
     plot1d_dic['PBLH_DQ'] = ['Boundary Layer Depth (dq/dz max)','meters',1., 0., 2500.,'zi_q',1.] # zi_t: height of max theta gradient
-    plot1d_dic['PBL_DQMAX'] = ['Boundary Layer dq/dz Max.','g/kg/km',1000.*1000, -100, 0.,'',1.] # Min value of dq/dz
+    plot1d_dic['PBL_DQMAX'] = ['Boundary Layer dq/dz Max.','g/kg/km',1000.*1000, -100, 0.,'q',1.] # Min value of dq/dz
     plot1d_dic['PRECL']  = ['Large-Scale Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
     plot1d_dic['PRECC']  = ['Convective Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
     plot1d_dic['FLNS']   = ['Surface Net Short-wave Radiation','W/m2',1., 200., 800.,'',1.]
@@ -98,7 +98,7 @@ def plot1d_ts_scam(rinfo):
 
 
     # Legend side        
-        vleg_x = 0.085 if var in vleg_left else 0.97
+        vleg_x = 0.22 if var in vleg_left else 0.97
 
         # Loop cases and plot
         for icase in range(0,ncases):
@@ -137,7 +137,7 @@ def plot1d_ts_scam(rinfo):
                     dvardz = pvar.differentiate("lev") # Find field gradient wrt HEIGHT!
 #                   
             
-                    dvardz.loc[:,100:] = 0.  # Restrict to a specificheight region
+                    dvardz.loc[:,100:] = 0.  # Restrict to a specific height region
                     dvardz.loc[:,:3000.] = 0.
                   
                     
@@ -145,8 +145,8 @@ def plot1d_ts_scam(rinfo):
                     dvardz_zmin = dvardz.lev[dvardz_kmin[:]] # Height level of max/min level.
                     dvardz_ptop = dvardz.min(axis=1) # Actual value at min/max level.
                     
-                    if var=='PBL_DQMAX' : pvar=dvardz_ptop*vscale # Scale for plotting
-
+                    if var == 'PBL_DQMAX'  : pvar=dvardz_ptop*vscale # Scale for plotting
+                    if var == 'PBLH_DQ' : pvar=dvardz_zmin # Scale for plotting
 
                     pvar.attrs['long_name'] = 'Height of max. Liq. Water Potential Temperature gradient'
                     pvar.attrs['units'] = 'm' 
@@ -174,9 +174,12 @@ def plot1d_ts_scam(rinfo):
                 
                 ## Specfici quantity based on Q
                 if var in ['PBL_DQMAX']:
-
+                    if var in ['PBLH_DQ','PBL_DQMAX'] : pbl_var = 'q'
                     data_les = scam_icase['q'] # Read in data # 
-                    print(data_les)
+                    pvarp_sm = pvarp_sm.values.ravel()
+                    plev = plev.values.ravel()
+                    zlev = zlev.values.ravel()
+                    hour_frac = np.repeat(hour_frac,np_les)
                     np_les = scam_icase.sizes['nz']
                     data_les = data_les*lscale
 
@@ -189,6 +192,8 @@ def plot1d_ts_scam(rinfo):
                 if pvar is None: # Read in if special cases above not matched
                     lscale = plot1d_df.loc[var,'lscale']
                     with xr.set_options(keep_attrs=True): 
+                        print(pvar)
+                        print(var_les)
                         pvar = scam_icase[var_les]
                     pvar = pvar*lscale
                
@@ -205,8 +210,7 @@ def plot1d_ts_scam(rinfo):
 ## Merge back in for uniform plotting 
     
             mp.plot(hour_frac,pvar)
-            mp.ylim([ymin,ymax])
-            mp.xlim([5.,20.])
+           
 			
 # End of case loop here #
 				            
@@ -223,13 +227,15 @@ def plot1d_ts_scam(rinfo):
             plot_names = np.append(srun_names,"Ceilometer")
 
         # Axes stuff
+        mp.ylim([ymin,ymax])
+        mp.xlim([5.,20.])
         mp.xlabel("Local Time (hr)")
         mp.ylabel(plot1d_df.loc[var]['units'])
         mp.title(plot1d_df.loc[var]['long_name'])
 
 
         mp.legend(labels=plot_names, ncol=1, fontsize="medium",
-            columnspacing=1.0, labelspacing=0.8, bbox_to_anchor= (vleg_x, 0.83),
+            columnspacing=1.0, labelspacing=0.8, bbox_to_anchor= (vleg_x, 0.75),
             handletextpad=0.5, handlelength=1.5, borderaxespad=-5,
             framealpha=1.0,frameon=True)
         #        mp.show()
@@ -441,7 +447,7 @@ def plot2d_ts_scam(rinfo):
 
         ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
 
-#        mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
+        mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
         mp.suptitle(pvar.attrs['long_name']+(' - CLUBB' if 'CLUBB' in var else ' ')+' ('+plot2d_df.loc[var,'units']+')')
 
         ax1.set_title(srun_names[0])
@@ -569,13 +575,13 @@ def plot2d_ts_scam(rinfo):
                 mp.colorbar(plt0, extend='both',cax=fig1.add_axes([0.92,  0.13, 0.02, 0.76]))
             if sfile_nums[icase] !='LES': 
                 plt0 = ax1.contour(hour_frac,zlev,pvarp_sm,levels=aplevels, colors='black',linewidths=0.75)
-                ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
+                ax1.clabel(plt0, fontsize=8, colors='black')
             if sfile_nums[icase] =='LES': 
                 plt0 = ax1.tricontour(hour_frac, zlev, pvarp_sm, levels=aplevels, colors='black',linewidths=0.75) # Contours
-                ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
+                ax1.clabel(plt0, fontsize=8, colors='black')
                 plt0 = ax1.tricontour(hour_frac, zlev, zlev, levels=zlev_line,colors='black',linewidths=0.2) # 'Contour' model level heights
 
-#            mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
+            mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
 				   
 #				ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
             stitle = srun_names[icase] if sfile_nums[icase] !='LES' else (srun_names[icase]+'-LES')
