@@ -360,7 +360,7 @@ def plot2d_ts_scam(rinfo):
     ttmin = 6. ; ttmax = 18.
     zzmin = 0. ; zzmax = 3000.
 
-    ptype = 'diff' # Full/anom/diff 
+    ptype = 'full' # Full/anom/diff 
     cmap_full = 'Purples'
     cmap_anom = 'RdYlBu_r'
 #    cmap_anom = 'BrBG'
