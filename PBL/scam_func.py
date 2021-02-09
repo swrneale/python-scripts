@@ -1,5 +1,9 @@
 #########################################
 
+# SCAM PLOTING AND COMPUTE FUNCTIONS
+
+#########################################
+
 print('+++ IMPORTING MY FUNCTIONS +++')
 
 ### Imports ###
@@ -15,8 +19,8 @@ import matplotlib.pyplot as mp
 #from copy import deepcopy
 
 ### Constants ###
-rg = mconst.dry_air_gas_constant
-r_gas = 1000*mconst.dry_air_gas_constant.magnitude   # Specific gas constant for dry air (kg/joule)
+
+r_gas = mconst.dry_air_gas_constant.magnitude   # Specific gas constant for dry air (kg/joule)
 cp_air = mconst.dry_air_spec_heat_press.magnitude # Specific heat for dry air
 Lv = mconst.water_heat_vaporization.magnitude       # Latent heat of vaporization
 grav = mconst.earth_gravity.magnitude
@@ -155,9 +159,10 @@ def plot1d_ts_scam(rinfo):
                 if pvar is None:
                     pvar = vscale*scam_icase[var].isel(lat=0,lon=0)
 
-
+                print('================================================================================================')
                 print('-- ',var,' ---- PLOTTING 1D TIME PLOTS ------>>>  ', plot1d_df.loc[var]['long_name'])
                 print(sfile_nums[icase], ' --ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values))
+                print('================================================================================================')
 
                 ## LES time (map to SCAM time) - Assume preceded by SCAM case to interpolate to.
                 
@@ -426,11 +431,12 @@ def plot2d_ts_scam(rinfo):
         hour_frac = hour_frac.values
         hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac)
 
-
+        print()
+        print('================================================================================================')
         print('---- PLOTTING 2D TIME/HEIGHT PLOTS------ >>>  ')
         print(' - ',var,' - ',pvar.attrs['long_name'],' -- cmin/cmax --> ',cmin,cmax)               
         print('Case = ',sfile_nums[0],'Range=',np.min(pvar.values),np.max(pvar.values))
-
+        
 
 
         ##############             
@@ -451,7 +457,7 @@ def plot2d_ts_scam(rinfo):
         plt0 = ax1.contour(hour_frac,zlev,pvar0,levels=plevels,colors='black',linewidths=0.75)       
         ax1.clabel(plt0, fontsize=8, colors='black')
         
-        plt0 = ax1.contourf(hour_frac,zlev,pvar0,levels=[-min(np.abs(plevels)),min(np.abs(plevels))],colors='w') # Just to get white fill contours either side of zero
+#        plt0 = ax1.contourf(hour_frac,zlev,pvar0,levels=[-min(np.abs(plevels)),min(np.abs(plevels))],colors='w') # Just to get white fill contours either side of zero
 #        plt0 = ax1.plot(ceil_obs_t,ceil_obs,'X',color='red')
         mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4)
         mp.suptitle(pvar.attrs['long_name']+(' - CLUBB' if 'CLUBB' in var else ' ')+' ('+plot2d_df.loc[var,'units']+')')
@@ -514,7 +520,8 @@ def plot2d_ts_scam(rinfo):
                 hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac)
 
                 print('Case = ',sfile_nums[icase],'Range=',np.min(pvarp.values),np.max(pvarp.values))
-
+                print('================================================================================================')
+                
             # Remove initial column values (anom) or case0 (diff)
              
                 if ptype == 'diff' : pvarp = pvarp-pvar0 ; pcmap = cmap_anom
@@ -577,7 +584,7 @@ def plot2d_ts_scam(rinfo):
                 mp.subplots_adjust(right=0.9)  
                 mp.colorbar(plt0, extend='both',cax=fig1.add_axes([0.92,  0.13, 0.02, 0.76]))
                 
-            plt0 = ax1.contourf(hour_frac,zlev,pvarp,levels=[-min(np.abs(plevels)),min(np.abs(plevels))],colors='w') # Just to get white fill contours either side of zero
+#            plt0 = ax1.contourf(hour_frac,zlev,pvarp,levels=[-min(np.abs(plevels)),min(np.abs(plevels))],colors='w') # Just to get white fill contours either side of zero
             plt0 = ax1.contour(hour_frac,zlev,pvarp,levels=plevels, colors='black',linewidths=0.75) 
             ax1.clabel(plt0, fontsize=8, colors='black')			   
 #				ax1.clabel(plt0, fontsize=8, colors='black',fmt='%1.1f')
@@ -604,9 +611,23 @@ def plot2d_ts_scam(rinfo):
 
         
   
-        
-   
 
+
+
+
+###############################################
+# 1D Mean Height Plotting 
+###############################################
+
+
+def plot1d_mean_scam(rinfo):
+    
+    plot_mean_dic = {}
+       
+    plot_mean_dic['T']      = ['Temperature',1.,260.,305.,-20.,20.,'',1.,'K']
+    plot_mean_dic['RELHUM'] = ['Relative Humidity',1.,10., 120.,-100.,100.,'',1.,'%']
+    plot_mean_dic['CLOUD']  = ['Cloud Fraction',100., 0., 100.,-80.,80.,'',1.,'%']
+    plot_mean_dic['Q']      = ['Specific Humidity',1000., 1., 12.,-5,5.,'q',1000.,'g/kg']
 
 
 
@@ -1142,38 +1163,38 @@ def pbl_grad_calc(var_grad,scam_in):
 	
 def vcoord_scam(imlev,scam_in):
 
-	plevm = scam_in['hyam']*p0 + scam_in['hybm']*scam_in['PS'].isel(lat=0,lon=0) # Mid level
-	plevi = scam_in['hyai']*p0 + scam_in['hybi']*scam_in['PS'].isel(lat=0,lon=0) # Interface level
+    plevm = scam_in['hyam']*p0 + scam_in['hybm']*scam_in['PS'].isel(lat=0,lon=0) # Mid level
+    plevi = scam_in['hyai']*p0 + scam_in['hybi']*scam_in['PS'].isel(lat=0,lon=0) # Interface level
 	
-	plevm.attrs['units'] = "Pa"
-	plevi.attrs['units'] = "Pa"
+    plevm.attrs['units'] = "Pa"
+    plevi.attrs['units'] = "Pa"
 
 # Height with standard atmosphere
 
-	zlevm = plevm
-
-	zlevm_vals = 1000.*mpc.pressure_to_height_std(plevm).magnitude
-	zlevi_vals = 1000.*mpc.pressure_to_height_std(plevi).magnitude
-	dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1]).magnitude
+    zlevm = plevm
+#    print(1000.*mpc.pressure_to_height_std(plevm).values)
+    zlevm_vals = 1000.*mpc.pressure_to_height_std(plevm).values
+    zlevi_vals = 1000.*mpc.pressure_to_height_std(plevi).values
+    dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1]).values
     
-	zlevm = plevm.copy(deep=True)
-	zlevi = plevi.copy(deep=True)
+    zlevm = plevm.copy(deep=True)
+    zlevi = plevi.copy(deep=True)
     
-	zlevm[:,:] = zlevm_vals
-	zlevi[:,:] = zlevi_vals
+    zlevm[:,:] = zlevm_vals
+    zlevi[:,:] = zlevi_vals
     
 # Normalize to ilev bottom being Z of surface
 
-	zlevm = zlevm-dzbot
-	zlevi = zlevi-dzbot
+    zlevm = zlevm-dzbot
+    zlevi = zlevi-dzbot
     
-	zlevm = zlevm.transpose() # Get time to be first dimension
-	zlevi = zlevi.transpose()
+    zlevm = zlevm.transpose() # Get time to be first dimension
+    zlevi = zlevi.transpose()
 
         
-	v_coord = [plevm,zlevm] if imlev in 'mid' else [plevi,zlevi] # Return dep. on interface/mid
+    v_coord = [plevm,zlevm] if imlev in 'mid' else [plevi,zlevi] # Return dep. on interface/mid
         
-	return v_coord
+    return v_coord
 
 
 
@@ -1192,6 +1213,7 @@ def dev_vars_scam(var_name,sfile_in):
         theta.attrs['long_name'] = "Potential Temperature" 
         theta.attrs['units'] = "K" 
         dev_var = theta
+  
    
     if var_name=='THV' : # (For dry air)
         thetav = theta*(1.+0.61*sfile_in['Q'].isel(lat=0,lon=0).transpose())
