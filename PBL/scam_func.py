@@ -21,7 +21,7 @@ import matplotlib.pyplot as mp
 ### Constants ###
 
 r_gas = mconst.dry_air_gas_constant.magnitude   # Specific gas constant for dry air (kg/joule)
-cp_air = mconst.dry_air_spec_heat_press.magnitude # Specific heat for dry air
+cp_air = mconst.magnitude # Specific heat for dry air
 Lv = mconst.water_heat_vaporization.magnitude       # Latent heat of vaporization
 grav = mconst.earth_gravity.magnitude
 
@@ -43,7 +43,13 @@ r_cp = r_gas/cp_air    # r/cp
 
 def plot1d_ts_scam(rinfo):
 	
-#import pandas as pd
+    """
+    Test 
+
+    """
+    
+    
+    #import pandas as pd
 	
     plot1d_dic = {}
 
@@ -866,7 +872,7 @@ def plot1d_snap_scam(rinfo):
                 
                          
                 if var not in ['T','TH','THL']: 
-                    mp.vlines(0, 0, scam_icase[pvar.dims[1]].max(), linestyle="dashed",lw=1)
+                   %matplotlib inline
                 mp.hlines(zlev, cmin, cmax,lw=0.01) # plev horizontal lines
                 
 ## PLOT PBLH DEPEDENT ON QUANTITY ###
