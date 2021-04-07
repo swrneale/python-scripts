@@ -121,7 +121,7 @@ def plot1d_ts_scam(rinfo):
             if sfile_nums[icase] !='LES': 
 
                 time = scam_icase.time
-                hour_frac = time.time.dt.hour+time.time.dt.minute/60.-zoffset
+                hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset
                 hour_frac = hour_frac.values
                 hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac) # Makes continuous time when day goes into next day.
 
@@ -433,7 +433,7 @@ def plot2d_ts_scam(rinfo):
         time = scam_icase.time
 
         #        time_plot = time.time.dt.monotonic
-        hour_frac = time.time.dt.hour+time.time.dt.minute/60.-zoffset
+        hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset
         hour_frac = hour_frac.values
         hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac)
 
@@ -521,7 +521,7 @@ def plot2d_ts_scam(rinfo):
 
                 zlev_line = zlev
                 time = scam_icase.time
-                hour_frac = time.time.dt.hour+time.time.dt.minute/60.-zoffset
+                hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset
                 hour_frac = hour_frac.values
                 hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac)
 
@@ -791,7 +791,7 @@ def plot1d_snap_scam(rinfo):
             
                 time = scam_icase.time
            
-                hour_frac = time.time.dt.hour+time.time.dt.minute/60.-zoffset           
+                hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset           
                 hour_frac[hour_frac<0.] = hour_frac.values[hour_frac<0.]+24. # Reset if day ticks over to next day
 
             
@@ -856,8 +856,11 @@ def plot1d_snap_scam(rinfo):
 
             nplot_snaps = ntsnaps if sfile_nums[icase] != '106def' else ntsnaps-1
             for ii in range(0, nplot_snaps): 
-            
                 
+#                print(' --- LOOP --- ')
+#                print(tsnaps[ii])
+#                print(hour_frac)
+#                print(tsnaps)
                 itt = np.min(np.where(hour_frac==tsnaps[ii])) # Plot at this time
                     
                 pvart = pvar[itt,:]
@@ -1252,3 +1255,42 @@ def les_reg_grid(var_les,plev,zlev):
 #    hour_frac = np.repeat(hour_frac,np_les)
    
     return (var_les_reg)
+
+
+
+
+
+#################################
+### Set up case specific settings
+#################################
+
+def case_iop_specs(case_iop):
+  
+    scam_file_pre = "FSCAM.T42_T42."+case_iop+"."
+
+### SAS ###
+    
+    if case_iop=='SAS':
+        scam_file_suf = ".cam.h0.2013-06-10-39600" # most recent IC data (>=21)
+#scam_file_suf = ".cam.h0.2013-06-10-43200" # Older IOP IC data (per-21)
+        zoffset = -6
+
+#### LES model selections ####
+
+        les_files_in = {}
+        les_files_in['NCAR'] = "patton_sas_stats.nc"
+   
+
+
+### PERDIGAO ###
+    
+    if case_iop=='PERDIAGO':
+        scam_file_suf = ".cam.h0.2013-06-10-39600" # most recent IC data (>=21)
+        zoffset = 0.
+
+#### LES model selections ####
+
+        les_files_in = {}
+        les_files_in['NCAR'] = "patton_perdigao_stats.nc"
+    
+    return(scam_file_pre,scam_file_suf,les_files_in,zoffset)
