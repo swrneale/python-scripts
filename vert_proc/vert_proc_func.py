@@ -123,3 +123,50 @@ def h0_month_fix(hist_tseries_var):
     hist_tseries_var.time.dt.year[0] = cftime.DatetimeNoLeap(1979, 1, 1, 0, 0, 0, 0)
     
     return hist_tseries_var
+
+
+
+
+
+
+
+##########  GET CORRECT TENDENCY VARIABLES ##########
+
+def cam_tend_var_get(files_ptr,var_name):
+
+# Determining CAM5/CAM6 based on levels.
+
+    nlevs = files_ptr.lev.size
+    fvers = files_ptr.variables
+#
+
+    if var_name not in ['STEND_CLUBB','RVMTEND_CLUBB']
+    if var_name in fvers: print
+    if nlevs in [32,30]: 
+        
+        
+    
+# Variable read in and time averaging (with special cases).
+
+    if var_name == 'DTCOND' and : 
+            var_in = files_ptr['DTCOND'].mean(dim=['time'])+files_ptr['DTV'].mean(dim=['time'])
+
+    if var_name == 'DCQ' and case in ['rC5','rUW']: 
+            var_in = files_ptr['DCQ'].mean(dim=['time'])+files_ptr['VD01'].mean(dim=['time'])
+    
+    if var_name == 'STEND_CLUBB':
+       
+            var_in = 1005.*(files_ptr['DTV'].mean(dim=['time'])
+            +files_ptr['MACPDT'].mean(dim=['time'])/1000.
+            +files_ptr['CMFDT'].mean(dim=['time']))
+        else :
+            var_in = files_ptr[var_name].mean(dim=['time'])           
+    
+    if var_name == 'DIV':  
+            var_in = -files_ptr['OMEGA'].mean(dim=['time']).differentiate("lev")
+   
+    if var_name in ['OMEGA','ZMDT','ZMDQ']:
+            var_in = files_ptr[var_name].mean(dim=['time'])
+
+    return tend_var
+            
