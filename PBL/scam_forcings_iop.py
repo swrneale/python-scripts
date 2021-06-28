@@ -21,6 +21,8 @@ def scam_iop_settings(iop_case,dir_main):
     
     if iop_case=='SAS':
          
+        case_info['iop_title'] = 'Southeast Atmosphere Study (SipAS) campaign: Ideal day for the Mixed Layer Model (MXLCH, it can be accessed at https://github.com/classmodel/mxlch)'
+        case_info['iop_doi'] = 'https://doi.org/10.5194/acp-16-7725-2016'
         
     #### IOP file info. #####
         case_info['iop_file_in'] = dir_root+'ARM95_4scam_c180703'   # Input template
@@ -82,6 +84,10 @@ def scam_iop_settings(iop_case,dir_main):
 
     if iop_case=='PERDIGAO':
         
+        
+        case_info['iop_title'] = 'PERDIAGO'
+        case_info['iop_doi'] = 'https://doi.org/10.5194/acp-16-7725-2016'
+        
     #### IOP file info. #####
         case_info['iop_file_in'] = dir_root+'ARM95_4scam_c180703'   # Input template
         case_info['iop_file_out'] = dir_root+'SAS_ideal_4scam_22test.no_lsf' # Output forcing file
@@ -90,7 +96,7 @@ def scam_iop_settings(iop_case,dir_main):
         case_info['iop_lat'] =  32.5  # Lat location (SAS average of two smapling sites)
         case_info['iop_lon'] = -87.15 # Lon
 
-        case_info['bdate'] = 20130610
+        case_info['bdate'] = 20170501
 
         case_info['zoffset'] = 6. # Increment to reach Z time 
 

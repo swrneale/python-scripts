@@ -13,9 +13,18 @@ from scipy.interpolate import interp1d
 import scipy as spy
 import pandas as pd
 import datetime as dt
+import nc_time_axis
+import subprocess as sp
+
 import metpy.constants as mconst
 import metpy.calc as mpc
 import matplotlib.pyplot as mp
+import matplotlib.dates as mdates
+from matplotlib.dates import DateFormatter
+
+import os
+import sys 
+
 #from copy import deepcopy
 
 ### Constants ###
@@ -35,7 +44,6 @@ r_cp = r_gas/cp_air    # r/cp
 
 
 
-
 ################################
 #   1D Timeseries plotting     #
 ################################
@@ -44,28 +52,17 @@ r_cp = r_gas/cp_air    # r/cp
 def plot1d_ts_scam(rinfo):
 	
     """
-    Test 
+    1D TIMESERIES PLOTTING
 
     """
     
     
-    #import pandas as pd
+    # Grab variable information for plotting
 	
-    plot1d_dic = {}
-
-
-    # VAR -> vscale/ymin/ymax/p_var/lscale
-    plot1d_dic['LHFLX']  = ['Latent Heat Flux','W/m2',1.,0.,400,'wqsfc',Lv]
-    plot1d_dic['SHFLX']  = ['Sensible Heat Flux','W/m2',1.,0., 300,'wtsfc',cp_air]
-    plot1d_dic['TS']     = ['Surface Temperature','K',1., 290., 310.,'',1.]
-    plot1d_dic['PBLH']   = ['Boundary Layer Depth','meters',1., 0., 2800.,'zi_t',1.] # zi_t: height of max theta gradient
-    plot1d_dic['PBLH_DTH'] = ['Boundary Layer Depth (dth/dz max)','meters',1., 0., 2500.,'zi_t',1.] # zi_t: height of max theta gradient
-    plot1d_dic['PBLH_DQ'] = ['Boundary Layer Depth (dq/dz max)','meters',1., 0., 2500.,'zi_q',1.] # zi_t: height of max q gradient
-    plot1d_dic['PBL_DQMAX'] = ['Boundary Layer dq/dz Max.','g/kg/km',1000.*1000, -100, 0.,'q',1.] # Min value of dq/dz
-    plot1d_dic['PRECL']  = ['Large-Scale Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
-    plot1d_dic['PRECC']  = ['Convective Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
-    plot1d_dic['FLNS']   = ['Surface Net Short-wave Radiation','W/m2',1., 200., 800.,'',1.]
-    plot1d_dic['CAPE']   = ['CAPE','J/kg',1., 0., 800.,'',1.]
+    
+    plot1d_dic = var_plot_setup("1d_ts")
+    
+   
 
 
     ## Data Frame ##	
@@ -75,22 +72,46 @@ def plot1d_ts_scam(rinfo):
     #		'background-color': 'grey',
     #		'font-size': '20pt'})
 
-    print(plot1d_df) 
+    
+   
+
 
 
     vleg_left = ['PBLH','PBLH_DTH','PBLH_DQ'] # Vars. to put legend on the left not right.
 
     ## Unbundle ##
+    case_iop = rinfo['Case IOP']
     pvars_ts1d = np.array(rinfo['1dvars'])
     srun_names =  np.array(rinfo['Run Name']) # Has to be numpy so it can get appended
-    sfiles_in = np.array(rinfo['File Name'])
+  
     sfile_nums = np.array(rinfo['File Num'])
-    zoffset = np.array(rinfo['zoffset'])
     sfig_stub = rinfo['Stub Figs']
-
+    dir_root = rinfo['Dir Root']
+    pvars_list = rinfo['pvars_list']
+    
+    zoffset,iop_day,ttmin,ttmax = get_iop_info(case_iop)
+    
     ## Derived vars.	
     ncases = srun_names.size
 
+    
+    
+# Case an plotting info.
+
+
+    print("")
+    print("====================================")
+    print(case_iop," - 1D PLOTTING VARIABLES")
+    print("====================================")
+    
+    
+##
+    fig1 = mp.figure(figsize=(16, 5))
+    ax1 = fig1.add_subplot(111)
+    
+# Display all available variables    
+
+    if (pvars_list) : print(plot1d_df) 
 
     ## 1D PLOTS ##
     #mp.rcParams['figure.dpi'] = 50
@@ -98,7 +119,9 @@ def plot1d_ts_scam(rinfo):
 
     for var in pvars_ts1d:
         
-
+        print('================================================================================================')
+        print('-- ',var,' ---- PLOTTING 1D TIME PLOTS ------>>>  ', plot1d_df.loc[var]['long_name'])
+        
         vscale = plot1d_df.loc[var]['vscale'], ; ymin = plot1d_df.loc[var]['ymin'] \
             ; ymax = plot1d_df.loc[var]['ymax']
 
@@ -113,22 +136,32 @@ def plot1d_ts_scam(rinfo):
             pvar = None
             if (srun_names[icase] == 'LES' and var_les == ''): 
                 continue
-            print(sfiles_in[icase])
-            scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4')
-
-
+           
+#            scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4')
+            scam_icase = scam_open_files(case_iop,sfile_nums[icase],srun_names[icase],dir_root)
+        
+        
+    
     ## SCAM time and var
             if sfile_nums[icase] !='LES': 
-
+                
                 time = scam_icase.time
-                hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset
-                hour_frac = hour_frac.values
-                hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac) # Makes continuous time when day goes into next day.
-
-
+                print(time)
+#                print(scam_icase)
+#                hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset
+#                hour_frac = hour_frac.values
+#                hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac) # Makes continuous time when day goes into next day.
+                hour_frac =time.dt.strftime("%H-%M") # Works for time axis and labeling
+                print(hour_frac)
+        
+#                print(dir(time.time))
+#                print(time.dt.dayofyear)
+#                date_form = DateFormatter("%m-%d")
+               
                 if var in ['PBLH_DTHL','PBLH_DQ','PBL_DQMAX']:  # PBL derived from d(thl/dz)
 
                     # Set up height instead of pressure
+                  
                     plevm,zlevm = vcoord_scam('mid',scam_icase)
                     plevi,zlevi = vcoord_scam('int',scam_icase)
 
@@ -151,7 +184,7 @@ def plot1d_ts_scam(rinfo):
                     
                     dvardz_kmin = dvardz.argmin(axis=1) # Find the index of the maxium in the vertical		
                     dvardz_zmin = dvardz.lev[dvardz_kmin[:]] # Height level of max/min level.
-                    print(dvardz_zmin)
+                    
                     dvardz_ptop = dvardz.min(axis=1) # Actual value at min/max level.
                     
                     if var == 'PBL_DQMAX'  : pvar=dvardz_ptop*vscale # Scale for plotting
@@ -165,10 +198,7 @@ def plot1d_ts_scam(rinfo):
                 if pvar is None:
                     pvar = vscale*scam_icase[var].isel(lat=0,lon=0)
 
-                print('================================================================================================')
-                print('-- ',var,' ---- PLOTTING 1D TIME PLOTS ------>>>  ', plot1d_df.loc[var]['long_name'])
-                print(sfile_nums[icase], ' --ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values))
-                print('================================================================================================')
+     
 
                 ## LES time (map to SCAM time) - Assume preceded by SCAM case to interpolate to.
                 
@@ -202,25 +232,35 @@ def plot1d_ts_scam(rinfo):
                 if pvar is None: # Read in if special cases above not matched
                     lscale = plot1d_df.loc[var,'lscale']
                     with xr.set_options(keep_attrs=True): 
-                        print(pvar)
-                        print(var_les)
+                        
                         pvar = scam_icase[var_les]
                     pvar = pvar*lscale
                
-                # INterpolate to SCAM time.
+
+            # Interpolate to SCAM time.
       
                 fles_int = spy.interpolate.interp1d(hour_frac_les.values,pvar,bounds_error=False)
 
-#                print('-- ',var_les,' ---- PLOTTING 1D TIME PLOTS ------>>>  ',plot1d_df.loc[var]['long_name'])
-#                print(sfile_nums[icase], ' --ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values))
-
+                
+            # Map to hour_frac time.
                 pvar = fles_int(hour_frac)
+                
+            # Convert to xarray Dataset for consistancy with SCAM
+                           
+                pvar = xr.DataArray(pvar)
+                
 
                 
 ## Merge back in for uniform plotting ##
-    
-            mp.plot(hour_frac,pvar)
+            
            
+            print(" --> ",sfile_nums[icase],' -- ',srun_names[icase], ' -- ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values)," <-- ",)
+           
+            ax1.plot(time,pvar)
+#           
+
+            
+#            ax.set_major_formatter(date_form)
 			
 # End of case loop here #
 				            
@@ -228,8 +268,10 @@ def plot1d_ts_scam(rinfo):
 
         plot_names = srun_names
 
-        if var in ['PBLH_DTHL','PBLH_DQ']:
+        if case_iop == 'SAS' and var in ['PBLH_DTHL','PBLH_DQ']:
 
+            print('hi')
+            
             ceil_obs   = [500.,300.,400.,400,500.,750.,1200.,1200.,1250.,1350.,1500.,1600.,1500.,1300.]
             ceil_obs_t = [5.,6,7,8,9,10,11,12,13,14,15,16,17,18]
 
@@ -237,20 +279,35 @@ def plot1d_ts_scam(rinfo):
             plot_names = np.append(srun_names,"Ceilometer")
 
         # Axes stuff
-        mp.ylim([ymin,ymax])
-        mp.xlim([5.,20.])
-        mp.xlabel("Local Time (hr)")
-        mp.ylabel(plot1d_df.loc[var]['units'])
-        mp.title(plot1d_df.loc[var]['long_name'])
+        
+         
+#            ax1.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+#        time_stride = mdates.HourLocator(interval = 1)  ;  myFmt = mdates.DateFormatter('%H')
+        time_stride = mdates.DayLocator(interval = 2)  ;  myFmt = mdates.DateFormatter('%D')
+            
+        mp.gcf().autofmt_xdate()
+       
+        ax1.xaxis.set_major_formatter(myFmt)
+        ax1.xaxis.set_major_locator(time_stride)
+        
+        ax1.set_ylim([ymin,ymax])
+        ax1.set_xlim(time.min,time.max)
+        ax1.set_xlabel("Local Time (hr)")
+        ax1.set_ylabel(plot1d_df.loc[var]['units'])
+        ax1.set_title(plot1d_df.loc[var]['long_name'])
 
 
-        mp.legend(labels=plot_names, ncol=1, fontsize="medium",
+        ax1.legend(labels=plot_names, ncol=1, fontsize="medium",
             columnspacing=1.0, labelspacing=0.8, bbox_to_anchor= (vleg_x, 0.75),
             handletextpad=0.5, handlelength=1.5, borderaxespad=-5,
             framealpha=1.0,frameon=True)
         #        mp.show()
-        mp.savefig(sfig_stub+'_plot1d_ts_scam_'+var+'.png', dpi=300)
+#        mp.savefig(sfig_stub+'_plot1d_ts_scam_'+var+'.png', dpi=300)
+        
+        print('================================================================================================')
+        print('')
         mp.show()
+        print('')
         mp.close()
 
 
@@ -275,71 +332,20 @@ def plot1d_ts_scam(rinfo):
 
 def plot2d_ts_scam(rinfo):
 
-    plot2d_dic = {}
+    
+    	
+    """
+    2D TIMESERIES PLOTTING
 
-    plot2d_dic['T'] = ['Temperature', 
-        1.,260.,305.,-.5,.5,'',1.,'K']
-
-    plot2d_dic['RELHUM'] = ['Relative Humidity',
-        1.,10., 120.,-10.,10.,'',1.,'%']
-    plot2d_dic['CLOUD'] = ['Cloud Fraction', 
-        100., 0., 100.,-10.,10.,'',1.,'%']
-    plot2d_dic['Q'] = ['Specific Humidity',
-        1000., 1., 12.,-2,2.,'q',1000.,'g/kg']
-
-    plot2d_dic['TH'] = ['Potential Temperature', \
-        1., 295, 305.,-.5,.5,'t',1.,'K']
-    plot2d_dic['THL'] = ['Liquid Water Potential Temperature', \
-        1., 270, 310.,-1.,1.,'thl',1.,'K']
-    plot2d_dic['THV'] = ['Virtual Potential Temperature', \
-        1., 295, 305.,-2.,2.,'tv',1.,'K']
-
-    plot2d_dic['DCQ'] = ['Humidity Tendencies - Moist Processes', \
-        1000., -5., 5.,-1.,1.,'',1.,'g/kg/day']
-    plot2d_dic['DTCOND']  = ['Temperature Tendencies - Moist Processes', \
-        86400., -10., 10.,-1.,1.,'',1.,'K/day']   
-
-    plot2d_dic['ZMDT'] = ['Temperature Tendencies - Deep Convection', \
-        86400., -10., 10.,-1.,1.,'',1.,'K/day']
-    plot2d_dic['ZMDQ'] = ['Humidity Tendencies - Deep Convection', \
-        86400.*1000., -2, 2.,-8.,8.,'',1.,'g/kg/day']
-
-    plot2d_dic['CMFDT'] = ['Temperature Tendencies - Shallow Convection', \
-        86400., -10., 10.,-10.,10.,'',1.,'K/day']
-    plot2d_dic['CMFDQ']  = ['Humidity Tendencies - Shallow Convection', \
-        86400.*1000., -2, 2.,-8.,8.,'',1.,'g/kg/day']
-
-
-
-    # BL/Turb. vars.                             
-    plot2d_dic['DTV']  = ['Temperature Tendencies - Vertical Diffusion',
-        86400., -15., 15.,-1.,1.,'',1.,'K/day']
-    plot2d_dic['VD01']  = ['Humidity Tendencies - Vertical Diffusion',
-        6400.*1000., -50, 50.,-1.,1.,'',1.,'g/kg/day']
-
-    plot2d_dic['STEND_CLUBB']    = ['Temperature Tendencies - CLUBB', \
-        86400./1000., -20, 20,-6.,6.,'',1.,'K/day'] #J/kg.s -> K/day
-    plot2d_dic['RVMTEND_CLUBB']  = ['Humidity Tendencies - CLUBB', \
-        1000.*86400, -100., 100.,-20.,20.,'',1.,'g/kg/day']
-
-    plot2d_dic['WPRTP_CLUBB'] = ['w,q - Flux Covariance - CLUBB', \
-        1., -0., 600.,-100.,100.,'wq_r',Lv,'W/m^2']
-    plot2d_dic['WPTHLP_CLUBB'] = ['w,thl - Flux Covariance - CLUBB', \
-        1., -100., 100.,-10.,10.,'wt_r',cp_air,'W/m^2']
-    plot2d_dic['WPTHVP_CLUBB'] = ['w,thv - Flux Covariance - CLUBB', \
-        1., -100., 100.,-5.,5.,'',1.,'W/m^2']
-
-    plot2d_dic['THLP2_CLUBB'] = ['T^2 - Variance - CLUBB', \
-        1., 0., 0.05,-0.01,0.01,'tt_r',1.,'K^2']   
-    plot2d_dic['RTP2_CLUBB']  = ['q^2 - Variance - CLUBB', 1., 0., 2.5,-0.5,0.5,'qq_r',1000.*1000.,'g^2/kg^2']
+    """
     
     
-    
-    plot2d_dic['WP2_CLUBB']   = ['w^2 - Variance - CLUBB', \
-        1., 0., 2.,-0.5,0.5,'ww_r',1.,'m^2/s^2'] 
 
-    plot2d_dic['WP3_CLUBB']   = ['w^3 - Skewness  - CLUBB', \
-        1., 0., 0.5,-0.05,0.05,'www_r',1.,'w^3/s^3']
+  # Grab variable information for plotting
+	
+    
+    plot2d_dic = var_plot_setup("2d_ts")
+    
 
 
     ### Vars that do not have -ve values in their full field.                             
@@ -353,25 +359,47 @@ def plot2d_ts_scam(rinfo):
     #    print(plot2d_df.style.set_table_styles([{'selector':'','props':[('border','4px solid #7a7')]}]))
     #   print(plot2d_df)
 
+  
+    
+
     ## Unbundle ##
+    case_iop = rinfo['Case IOP']
     pvars_ts2d = np.array(rinfo['2dvars'])
     srun_names =  np.array(rinfo['Run Name']) # Has to be numpy so it can get appended
-    sfiles_in = np.array(rinfo['File Name'])
     sfile_nums = np.array(rinfo['File Num'])
-    zoffset = np.array(rinfo['zoffset'])
+    dir_root = rinfo['Dir Root']
     sfig_stub = rinfo['Stub Figs']
+    pvars_list = rinfo['pvars_list']
+
+    zoffset,iop_day,ttmin,ttmax = get_iop_info(case_iop) # A few iop specific vars.
+
+    
+    
+# Case and plotting info. print.
+
+    print("")
+    print("===================================")
+    print(case_iop," - 2D PLOTTING VARIABLES")
+    print("===================================")
+   
 
 
+
+# Display all available variables    
+
+    if (pvars_list) : print(plot2d_df) 
+
+    
     ## Derived vars.	
     ncases = srun_names.size
-
+    
+    
 
     nclevs = 20 # Number of contour levels
     ppmin = 500. ; ppmax = 1000. # Pressure (mb) plot range
-    ttmin = 6. ; ttmax = 18.
     zzmin = 0. ; zzmax = 3000.
 
-    ptype = 'full' # Full/anom/diff 
+    ptype = 'full' # Full/anom (case differening)/diff (time=0 differencing) 
     cmap_full = 'Purples'
     cmap_anom = 'RdYlBu_r'
 #    cmap_anom = 'BrBG'
@@ -409,7 +437,8 @@ def plot2d_ts_scam(rinfo):
        
 
         ### First case plot (could be only plot) ###
-        scam_icase = xr.open_dataset(sfiles_in[0],engine='netcdf4') 
+#        scam_icase = xr.open_dataset(sfiles_in[0],engine='netcdf4') 
+        scam_icase = scam_open_files(case_iop,sfile_nums[0],srun_names[0],dir_root)
         
         plevm,zlevm = vcoord_scam('mid',scam_icase)
         plevi,zlevi = vcoord_scam('int',scam_icase)
@@ -420,7 +449,8 @@ def plot2d_ts_scam(rinfo):
         ### Derived Met variables ###
         if var in ['TH','THL','THV'] : 
             pvar = dev_vars_scam(var,scam_icase)
-
+       
+            
         ### All other vars. ###    
         if pvar is None :  # Set pvar if not already.
             pvar = scam_icase[var].isel(lat=0,lon=0).transpose()
@@ -438,16 +468,16 @@ def plot2d_ts_scam(rinfo):
         hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac)
 
         print()
+        print()
         print('================================================================================================')
-        print('---- PLOTTING 2D TIME/HEIGHT PLOTS------ >>>  ')
+        print('---- PLOTTING 2D TIME/HEIGHT PLOTS ------ >>>  ')
         print(' - ',var,' - ',pvar.attrs['long_name'],' -- cmin/cmax --> ',cmin,cmax)               
-        print('Case = ',sfile_nums[0],'Range=',np.min(pvar.values),np.max(pvar.values))
-        
+        print(' --> ', \
+                    srun_names[0],' -- ',sfile_nums[0],' -- ', np.min(pvar.values),np.max(pvar.values))
 
-
-        ##############             
-        # First plot #
-        ##############
+##############             
+# First plot #
+##############
 
         fig1 = mp.figure(figsize=(16, 5))
         ax1 = fig1.add_subplot(111)
@@ -457,9 +487,9 @@ def plot2d_ts_scam(rinfo):
         pcmap=cmap_full if var in var_cmap0 else cmap_anom
 #        pvarp = pvarp-pvarp[:,0] # Remove initial column values
        
-        plt0 = ax1.contourf(hour_frac,zlev,pvar0,levels=plevels,cmap=pcmap,extend='both')   
-        if ptype !='full': mp.colorbar(plt0, extend='both')
-
+        plt0 = ax1.contourf(hour_frac,zlev,pvar0,levels=plevels,cmap=pcmap, extend='both')   
+        if ptype !='full': mp.colorbar(plt0)
+    
         plt0 = ax1.contour(hour_frac,zlev,pvar0,levels=plevels,colors='black',linewidths=0.75)       
         ax1.clabel(plt0, fontsize=8, colors='black')
         
@@ -497,8 +527,13 @@ def plot2d_ts_scam(rinfo):
             pvarp = None
 
         # Open file (SCAM or LES) 
-            scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4')
+#            scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4')
+            scam_icase = scam_open_files(case_iop,sfile_nums[icase],srun_names[icase],dir_root)
 
+    
+    
+####### SCAM Specific #######   
+    
             if sfile_nums[icase] != 'LES':
 
                 plevm,zlevm = vcoord_scam('mid',scam_icase)
@@ -525,8 +560,7 @@ def plot2d_ts_scam(rinfo):
                 hour_frac = hour_frac.values
                 hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac)
 
-                print('Case = ',sfile_nums[icase],'Range=',np.min(pvarp.values),np.max(pvarp.values))
-                print('================================================================================================')
+                             
                 
             # Remove initial column values (anom) or case0 (diff)
              
@@ -534,7 +568,7 @@ def plot2d_ts_scam(rinfo):
                 if ptype == 'anom' : pvarp = pvarp-pvarp[:,0] ; pcmap = cmap_anom
              
 
-        # LES Specific   
+####### LES Specific #######
 
             if sfile_nums[icase] =='LES': 
 
@@ -579,16 +613,18 @@ def plot2d_ts_scam(rinfo):
 
         #### Actual Plots ####
 
-
-            plt0 = ax1.contourf(hour_frac,zlev,pvarp,levels=plevels,cmap=pcmap,extend='both')
+            print(' --> ', \
+                    srun_names[icase],' -- ',sfile_nums[icase],' -- ', np.min(pvar.values),np.max(pvar.values))
+            
+            plt0 = ax1.contourf(hour_frac,zlev,pvarp,levels=plevels,cmap=pcmap, extend='both')
             mp.hlines(zlev, min(hour_frac), max(hour_frac), linestyle="dotted",lw=0.4) # Add level lines
   
                 
         # Squeeze in colorbar here so it doesn't get messed up by line contours
                            
             if icase==ncases-1: 
-                mp.subplots_adjust(right=0.9)  
-                mp.colorbar(plt0, extend='both',cax=fig1.add_axes([0.92,  0.13, 0.02, 0.76]))
+#                mp.subplots_adjust(right=0.9)  
+                mp.colorbar(plt0, cax=fig1.add_axes([0.92,  0.13, 0.02, 0.76]))
                 
 #            plt0 = ax1.contourf(hour_frac,zlev,pvarp,levels=[-min(np.abs(plevels)),min(np.abs(plevels))],colors='w') # Just to get white fill contours either side of zero
             plt0 = ax1.contour(hour_frac,zlev,pvarp,levels=plevels, colors='black',linewidths=0.75) 
@@ -610,9 +646,15 @@ def plot2d_ts_scam(rinfo):
     #            ax1.invert_yaxis()  
 
     ## Plot ##
-        mp.savefig(sfig_stub+'_plot2d_ts_scam_'+var+'_'+ptype+'.png', dpi=600)              
+    
+        print('================================================================================================')
+        print('')
+        
+        mp.savefig(sfig_stub+'_plot2d_ts_scam_'+var+'_'+ptype+'.png', dpi=600)    
         mp.show()
 
+        print('')
+        
         del pvar       
 
         
@@ -655,48 +697,19 @@ def plot1d_mean_scam(rinfo):
 
 def plot1d_snap_scam(rinfo):
     
-    plot_snap_dic = {}
     
-    plot_snap_dic['T']      = ['Temperature',1.,260.,305.,-20.,20.,'',1.,'K']
-    plot_snap_dic['RELHUM'] = ['Relative Humidity',1.,10., 120.,-100.,100.,'',1.,'%']
-    plot_snap_dic['CLOUD']  = ['Cloud Fraction',100., 0., 100.,-80.,80.,'',1.,'%']
-    plot_snap_dic['Q']      = ['Specific Humidity',1000., 1., 12.,-5,5.,'q',1000.,'g/kg']
- 
-    plot_snap_dic['TH']  = ['Potential Temperature',1., 295, 305.,-20.,20.,'t',1.,'K']
-    plot_snap_dic['THL']  = ['Liquid Water Potential Temperature',1., 270, 310.,-20.,20.,'thl',1.,'K']
-    plot_snap_dic['THLV']  = ['Virtual Potential Temperature', 1., 270, 310.,-20.,20.,'tv',1.,'K']
-    
-    plot_snap_dic['DCQ']  = ['Humidity Tendencies - Moist Processes',1000., -5., 5.,-5.,5.,'',1.,'g/kg/day']
-    plot_snap_dic['DTCOND']  = ['Temperature Tendencies - Moist Processes',86400., -10., 10.,-10.,10.,'',1.,'K/day']   
-    
-    plot_snap_dic['ZMDT']  = ['Temperature Tendencies - Deep Convection',86400., -10., 10.,-10.,10.,'',1.,'K/day']
-    plot_snap_dic['ZMDQ']  = ['Humidity Tendencies - Deep Convection',86400.*1000., -2, 2.,-8.,8.,'',1.,'g/kg/day']
-    
-    plot_snap_dic['CMFDT']  = ['Temperature Tendencies - Shallow Convection',86400., -10., 10.,-10.,10.,'',1.,'K/day']
-    plot_snap_dic['CMFDQ']  = ['Humidity Tendencies - Shallow Convection',86400.*1000., -2, 2.,-8.,8.,'',1.,'g/kg/day']
-   
-    
-                              
-# BL/Turb. vars.                             
-    plot_snap_dic['DTV']  = ['Temperature Tendencies - Vertical Diffusion',86400., -30., 13.,-10.,10.,'',1.,'K/day']
-    plot_snap_dic['VD01']  = ['Humidity Tendencies - Vertical Diffusion',86400.*1000., -50, 50.,-8.,8.,'',1.,'g/kg/day']
-    
-    plot_snap_dic['STEND_CLUBB']    = ['Temperature Tendencies - CLUBB',86400./1000., -20, 20,-2.,2.,'',1.,'K/day'] #J/kg.s -> K/day
-    plot_snap_dic['RVMTEND_CLUBB']  = ['Humidity Tendencies - CLUBB',1000.*86400, -50., 50.,-20.,20.,'',1.,'g/kg/day']
-                                                       
-    plot_snap_dic['WPRTP_CLUBB'] = ['w,q - Flux Covariance - CLUBB',1., -0., 600.,-50.,50.,'wq_r',Lv,'W/m^2']
-    plot_snap_dic['WPTHLP_CLUBB'] = ['w,thl - Flux Covariance - CLUBB',1., -100., 100.,-50.,50.,'wt_r',cp_air,'W/m^2']
-    plot_snap_dic['WPTHVP_CLUBB'] = ['w,thv - Flux Covariance - CLUBB',1., -100., 100.,-50.,50.,'',1.,'W/m^2']
-    
-    plot_snap_dic['THLP2_CLUBB'] = ['T^2 - Variance - CLUBB',1., 0., 0.15,-50.,50.,'tt_r',1.,'K^2']   
-    plot_snap_dic['RTP2_CLUBB']  = ['q^2 - Variance - CLUBB', 1., 0., 2.5,-0.5,0.5,'qq_r',1000.*1000.,'g^2/kg^2'] 
- 
-    plot_snap_dic['WP2_CLUBB']      = ['w^2 - Variance - CLUBB', 1., 0., 1.5,-0.5,0.5,'ww_r',1.,'w^3/s^3'] 
-    plot_snap_dic['WP3_CLUBB']      = ['w^3 - Skewness  - CLUBB',1., 0., 1.5,-0.2,0.2,'www_r',1.,'w^3/s^3']
- 
+    	
+    """
+    1D TIMESTAMP COLUMN PLOTTING
 
-
-
+    """
+    
+    
+    
+# Grab variable information for plotting
+	
+    
+    plot_snap_dic = var_plot_setup("1d_snap")
 
 
 
@@ -704,7 +717,7 @@ def plot1d_snap_scam(rinfo):
     plot_snap_df = pd.DataFrame.from_dict(plot_snap_dic, orient='index', \
         columns=['long_name','vscale','cmin','cmax','acmin','acmax','var_les','lscale','units'])
 
-
+    
 
 # Global stuff
    
@@ -719,19 +732,38 @@ def plot1d_snap_scam(rinfo):
 
 
 ## Unbundle ##
+    case_iop = rinfo['Case IOP']
     pvars_ts2d = np.array(rinfo['2dvars'])
     srun_names =  np.array(rinfo['Run Name']) # Has to be numpy so it can get appended
-    sfiles_in = np.array(rinfo['File Name'])
     sfile_nums = np.array(rinfo['File Num'])
-    zoffset = np.array(rinfo['zoffset'])
     sfig_stub = rinfo['Stub Figs']
     tsnaps = rinfo['Snap Times']
+    dir_root = rinfo['Dir Root']    
+    pvars_list = rinfo['pvars_list']
 
+    zoffset,iop_day,ttmin,ttmax = get_iop_info(case_iop)
+
+ 
+
+    
+    print("")
+    print("=============================================")
+    print(case_iop," - 1D SNAPSHOT PLOTTING VARIABLES")
+    print("=============================================")
+
+    
+
+
+
+# Display all available variables    
+
+    if (pvars_list) : print(plot_snap_df) 
+    
+    
+    
 	## Derived vars.	
     ncases = srun_names.size 
     ntsnaps = tsnaps.size
-    
-    
     
     
     
@@ -750,8 +782,7 @@ def plot1d_snap_scam(rinfo):
 
         fig1 = mp.figure(figsize=(16, 5))
         ax1 = fig1.add_subplot(111)
-        print('')
-        print('########## SNAPSHOTS ######### -->>  ',var)
+   
 
         # Plot several different functions...
 
@@ -759,8 +790,10 @@ def plot1d_snap_scam(rinfo):
         labels = []
         
         
-        
-        
+        print()
+        print('================================================================================================')
+        print('---- PLOTTING 1D HEIGHT SNAPSHOT PLOTS ------>>>  ')
+        print(' - ',var,'  - ', plot_snap_df.loc[var]['long_name'],' --')
         
         
 ############################
@@ -773,7 +806,8 @@ def plot1d_snap_scam(rinfo):
             
             pvar = None
             
-            scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4') 
+#            scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4') 
+            scam_icase = scam_open_files(case_iop,sfile_nums[icase],srun_names[icase],dir_root)
             # Vertical grid estimate.
             
             if sfile_nums[icase] != 'LES':
@@ -811,8 +845,9 @@ def plot1d_snap_scam(rinfo):
             
             if sfile_nums[icase] == 'LES':
                 
-                pblh_dq = scam_icase['zi_q']
-                pblh_dt = scam_icase['zi_t']
+                pblh_dq = scam_icase['zi_q'] # THis seems wrong compared to q field
+                pblh_dt = scam_icase['zi_t'] # This seems right
+                
                 
                 vscale = plot_snap_df.loc[var,'lscale']
                 les_tstart = scam_icase['ts'] # Start time (local?) seconds after 00
@@ -842,9 +877,8 @@ def plot1d_snap_scam(rinfo):
             pvar = pvar*vscale
                 
 #  
-            print('------ CASE ------>>>  ', \
-                    srun_names[icase],' -- ',sfile_nums[icase],' -- ',var,' --- ', \
-                    long_name,' -- min/max --> ',  np.min(pvar.values),np.max(pvar.values))
+            print(' -->  ', \
+                    srun_names[icase],' -- ',sfile_nums[icase],' -- ', np.min(pvar.values),np.max(pvar.values))
 
     
     
@@ -880,7 +914,9 @@ def plot1d_snap_scam(rinfo):
                 
 ## PLOT PBLH DEPEDENT ON QUANTITY ###
                 
-                pblh = pblh_dq[itt] if var=='Q' else  pblh_dt[itt] # Temp (theta) or Q criteria
+               
+                pblh = pblh_dq[itt] if var=='Q' else pblh_dt[itt] # Temp (theta) or Q criteria
+               
                 mp.hlines(pblh, cmin, cmax, linestyle="dashed",lw=1,color=cmap(ii)) # plot approx PBL depth
         
 ### Legend ###
@@ -909,6 +945,9 @@ def plot1d_snap_scam(rinfo):
         if var == var_anim and sfile_nums[icase] == run_anim: pvar_anim = pvar 
         
 #        mp.show()
+        print('================================================================================================')
+        print()
+    
         mp.savefig(sfig_stub+'_plot1d_snap_scam_'+var+'.png', dpi=300)    
 
         del pvar # Reset pvar array
@@ -1169,37 +1208,56 @@ def pbl_grad_calc(var_grad,scam_in):
 ######################################################
 ###  Vertical Coordinates From SCAM                ###
 ######################################################	
-	
+	    
+# Grabs vertical profile of pressure interfaces and mid-levels and converts them to height for plotting
+    
+    
 def vcoord_scam(imlev,scam_in):
 
     plevm = scam_in['hyam']*p0 + scam_in['hybm']*scam_in['PS'].isel(lat=0,lon=0) # Mid level
     plevi = scam_in['hyai']*p0 + scam_in['hybi']*scam_in['PS'].isel(lat=0,lon=0) # Interface level
 	
+    
+    plevm = plevm.transpose('lev','time')  # Force this ordering for constructing profiles (some cases differ)
+    plevi = plevi.transpose('ilev','time')
+    
     plevm.attrs['units'] = "Pa"
     plevi.attrs['units'] = "Pa"
 
 # Height with standard atmosphere
 
+#    print(scam_in)
     zlevm = plevm
 #    print(1000.*mpc.pressure_to_height_std(plevm).values)
     zlevm_vals = 1000.*mpc.pressure_to_height_std(plevm).values
     zlevi_vals = 1000.*mpc.pressure_to_height_std(plevi).values
-    dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1]).values
+    dzbot = np.array(1000.*mpc.pressure_to_height_std(plevi[-1,:]).values)
+   
     
-    zlevm = plevm.copy(deep=True)
+#    print(plevi[-1,:])
+
+    zlevm = plevm.copy(deep=True) # use plev variable structures on the dataset
     zlevi = plevi.copy(deep=True)
     
-    zlevm[:,:] = zlevm_vals
-    zlevi[:,:] = zlevi_vals
-    
-# Normalize to ilev bottom being Z of surface
 
-    zlevm = zlevm-dzbot
-    zlevi = zlevi-dzbot
+    zlevm.values = zlevm_vals # Just move across values to retain xarray wrapper
+    zlevi.values = zlevi_vals # ""
     
-    zlevm = zlevm.transpose() # Get time to be first dimension
+    nlevm = scam_in['lev'].size # Size of vertical dimensions
+    nlevi = scam_in['ilev'].size
+        
+# Normalize to ilev bottom being Z of surface from an expanded 2D array, then transpose back to original set up.
+    
+    dzbot_2d = np.tile(dzbot,(nlevm,1))  
+    zlevm = np.subtract(zlevm,dzbot_2d)
+    zlevm = zlevm.transpose()
+    
+    dzbot_2d = np.tile(dzbot,(nlevi,1))  
+    zlevi = np.subtract(zlevi,dzbot_2d)
     zlevi = zlevi.transpose()
-
+    
+    
+    
         
     v_coord = [plevm,zlevm] if imlev in 'mid' else [plevi,zlevi] # Return dep. on interface/mid
         
@@ -1233,7 +1291,7 @@ def dev_vars_scam(var_name,sfile_in):
     if var_name =='THL': 
         thetal = dev_var-(theta/sfile_in['T'].isel(lat=0,lon=0).transpose()) \
             *(Lv/cp_air)*sfile_in['Q'].isel(lat=0,lon=0).transpose() 
-        dev_var.attrs['long_name'] = "Liq. Water Potential Temperature"
+        thetal.attrs['long_name'] = "Liq. Water Potential Temperature"
         dev_var = thetal
     return (dev_var)
 
@@ -1260,37 +1318,268 @@ def les_reg_grid(var_les,plev,zlev):
 
 
 
+
+
+
 #################################
-### Set up case specific settings
+### Local Time Offset from GMT
 #################################
 
-def case_iop_specs(case_iop):
+
+""" GET THE ZOFFSET """
+""" AND FIGURE OUT THE DAYS TO GRAB """
+
+def get_iop_info(case_iop):
   
-    scam_file_pre = "FSCAM.T42_T42."+case_iop+"."
 
-### SAS ###
-    
-    if case_iop=='SAS':
-        scam_file_suf = ".cam.h0.2013-06-10-39600" # most recent IC data (>=21)
-#scam_file_suf = ".cam.h0.2013-06-10-43200" # Older IOP IC data (per-21)
+    if case_iop == 'SAS': 
         zoffset = -6
+        iop_day = -999.
+        ttmin = 5. ; ttmax = 18
+    if case_iop == 'PERDIGAO': 
+        zoffset = 2. # CET?
+        iop_day = '2017-05-23'
+        ttmin = 5. ; ttmax = 20
+    if case_iop == 'RICO' : 
+        zoffset = -4. ##  ??
+#        iop_day = '2004-12-16'
+        iop_day = -999.
+        ttmin = 5. ; ttmax = 20
 
-#### LES model selections ####
+    
+    return(zoffset,iop_day,ttmin,ttmax)
 
-        les_files_in = {}
-        les_files_in['NCAR'] = "patton_sas_stats.nc"
+
+#### 
+
+
+
+
+
+
+
+####################################################################
+###  OPEN AND READ SCAM OR LES IOP FILES.                        ###
+####################################################################	
+
+
+def scam_open_files(case_iop,file_num,run_name,dir_main):
+
+    
+# SCAM Output
+ 
+    if file_num != 'LES' :
+        
+        
+# File assignment using core dir from notebook
+        
+        files_dir = dir_main+'history/'
+        
+        files_pre = files_dir+'FSCAM.T42_T42.'+case_iop+'.' 
+        files_list = files_pre+file_num+'*nc'
+  
+        print(files_list)
+
+# Grab files (could be more than one)
+#        print(sp.run(['ls',files_list], shell=True)) # Fix tis check to work
+
+        try:
+            stdout1 = sp.check_output('ls '+files_list, shell=True)
+        except sp.CalledProcessError as e:
+            print(case_iop+' - '+run_name+' - Files Not Present - EXITING...')
+#            sys.exit(' *** EXITING ***')
+            
+            
+        files_in = sp.getoutput('ls '+files_list)
+                
+# Convert string to an array    
+    
+        files_in = files_in.split()
+                   
+# Grab some iop specific info.
+            
+        zoffset,iop_day,ttmin,ttmax = get_iop_info(case_iop)
+    
+# Check for and concatonate multiple files
+        
+        if len(files_in) > 1:
+            iop_dset = xr.open_mfdataset(files_in,)
+            
+            
+#print(iop_dset.time)
+        else :
+            iop_dset = xr.open_dataset(files_in[0],engine='netcdf4') 
+            
+# Trim to desired data
+        if iop_day != -999.: iop_dset = iop_dset.sel(time=iop_day)  # Choose day from specs. (May, 23 2017)
+        
+    
+        iop_dset = iop_dset.load() # Load this into memory as dask does not allow indexing or something like that.  
+        
+  
+    if file_num == 'LES' :
+            
+# LES Output
+        les_file_dir = dir_main+'LES/'
+        les_file_in = les_file_dir+run_name+'_'+case_iop+'_LES.nc' 
+
+        
+        iop_dset = xr.open_dataset(les_file_in,engine='netcdf4') 
+         
+       
+    
+    return(iop_dset)
+
+
+
+
+
+
+
+
+
+
+
+####################################################################
+###  VARIABLE SETUPS FOR PLOTTING (cotour,ranges, etc)           ###
+####################################################################	
+
+
+
+
+
+def var_plot_setup (plot_set) :
+
+    plot_dic = {}
+
+
+# 1D TIMESERIES
+    if (plot_set=='1d_ts') :
+    # VAR -> vscale/ymin/ymax/p_var/lscale
+        plot_dic['LHFLX']  = ['Latent Heat Flux','W/m2',1.,0.,400,'wqsfc',Lv]
+        plot_dic['SHFLX']  = ['Sensible Heat Flux','W/m2',1.,0., 300,'wtsfc',cp_air]
+        plot_dic['TS']     = ['Surface Temperature','K',1., 290., 310.,'',1.]
+        plot_dic['PBLH']   = ['Boundary Layer Depth (CAM)','meters',1., 0., 2800.,'zi_t',1.] # zi_t: height of max theta gradient
+        plot_dic['PBLH_DTH'] = ['Boundary Layer Depth (dth/dz max)','meters',1., 0., 2500.,'zi_t',1.] # zi_t: height of max theta gradient
+        plot_dic['PBLH_DQ'] = ['Boundary Layer Depth (dq/dz max)','meters',1., 0., 2500.,'zi_q',1.] # zi_t: height of max q gradient
+        plot_dic['PBL_DQMAX'] = ['Boundary Layer dq/dz Max.','g/kg/km',1000.*1000, -100, 0.,'q',1.] # Min value of dq/dz
+        plot_dic['PRECL']  = ['Large-Scale Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
+        plot_dic['PRECC']  = ['Convective Precipitation','mm/day',86400.*1000., 0., 10.,'',1.]
+        plot_dic['FLNS']   = ['Surface Net Short-wave Radiation','W/m2',1., 200., 800.,'',1.]
+        plot_dic['CAPE']   = ['CAPE','J/kg',1., 0., 800.,'',1.]
+
+# 2D TIMESERIES 
+        
+    if (plot_set=='2d_ts') :
+        plot_dic['T'] = ['Temperature', 
+        1.,260.,305.,-.5,.5,'',1.,'K']
+
+        plot_dic['RELHUM'] = ['Relative Humidity',
+            1.,10., 120.,-10.,10.,'',1.,'%']
+        plot_dic['CLOUD'] = ['Cloud Fraction', 
+            100., 0., 100.,-10.,10.,'',1.,'%']
+        plot_dic['Q'] = ['Specific Humidity',
+            1000., 1., 12.,-2,2.,'q',1000.,'g/kg']
+
+        plot_dic['TH'] = ['Potential Temperature', \
+            1., 295, 305.,-.5,.5,'t',1.,'K']
+        plot_dic['THL'] = ['Liquid Water Potential Temperature', \
+            1., 270, 310.,-1.,1.,'thl',1.,'K']
+        plot_dic['THV'] = ['Virtual Potential Temperature', \
+            1., 295, 305.,-2.,2.,'tv',1.,'K']
+
+        plot_dic['DCQ'] = ['Humidity Tendencies - Moist Processes', \
+            1000., -5., 5.,-1.,1.,'',1.,'g/kg/day']
+        plot_dic['DTCOND']  = ['Temperature Tendencies - Moist Processes', \
+            86400., -10., 10.,-1.,1.,'',1.,'K/day']   
+
+        plot_dic['ZMDT'] = ['Temperature Tendencies - Deep Convection', \
+            86400., -10., 10.,-1.,1.,'',1.,'K/day']
+        plot_dic['ZMDQ'] = ['Humidity Tendencies - Deep Convection', \
+            86400.*1000., -2, 2.,-8.,8.,'',1.,'g/kg/day']
+
+        plot_dic['CMFDT'] = ['Temperature Tendencies - Shallow Convection', \
+            86400., -10., 10.,-10.,10.,'',1.,'K/day']
+        plot_dic['CMFDQ']  = ['Humidity Tendencies - Shallow Convection', \
+            86400.*1000., -2, 2.,-8.,8.,'',1.,'g/kg/day']
+
+
+
+    # BL/Turb. vars.                             
+        plot_dic['DTV']  = ['Temperature Tendencies - Vertical Diffusion',
+            86400., -15., 15.,-1.,1.,'',1.,'K/day']
+        plot_dic['VD01']  = ['Humidity Tendencies - Vertical Diffusion',
+            6400.*1000., -50, 50.,-1.,1.,'',1.,'g/kg/day']
+
+        plot_dic['STEND_CLUBB']    = ['Temperature Tendencies - CLUBB', \
+            86400./1000., -20, 20,-6.,6.,'',1.,'K/day'] #J/kg.s -> K/day
+        plot_dic['RVMTEND_CLUBB']  = ['Humidity Tendencies - CLUBB', \
+            1000.*86400, -100., 100.,-20.,20.,'',1.,'g/kg/day']
+
+        plot_dic['WPRTP_CLUBB'] = ['w,q - Flux Covariance - CLUBB', \
+            1., -0., 600.,-100.,100.,'wq_r',Lv,'W/m^2']
+        plot_dic['WPTHLP_CLUBB'] = ['w,thl - Flux Covariance - CLUBB', \
+            1., -100., 100.,-10.,10.,'wt_r',cp_air,'W/m^2']
+        plot_dic['WPTHVP_CLUBB'] = ['w,thv - Flux Covariance - CLUBB', \
+            1., -100., 100.,-5.,5.,'',1.,'W/m^2']
+
+        plot_dic['THLP2_CLUBB'] = ['T^2 - Variance - CLUBB', \
+            1., 0., 0.05,-0.01,0.01,'tt_r',1.,'K^2']   
+        plot_dic['RTP2_CLUBB']  = ['q^2 - Variance - CLUBB', 1., 0., 2.5,-0.5,0.5,'qq_r',1000.*1000.,'g^2/kg^2']
+    
+    
+    
+        plot_dic['WP2_CLUBB']   = ['w^2 - Variance - CLUBB', \
+            1., 0., 2.,-0.5,0.5,'ww_r',1.,'m^2/s^2'] 
+
+        plot_dic['WP3_CLUBB']   = ['w^3 - Skewness  - CLUBB', \
+            1., 0., 0.5,-0.05,0.05,'www_r',1.,'m^3/s^3']
+        
+
+# 1D SNAPSHOT PROFILE PLOTS
+
+    if (plot_set=='1d_snap') :
+        
+        plot_dic['T']      = ['Temperature',1.,260.,305.,-20.,20.,'',1.,'K']
+        plot_dic['RELHUM'] = ['Relative Humidity',1.,10., 120.,-100.,100.,'',1.,'%']
+        plot_dic['CLOUD']  = ['Cloud Fraction',100., 0., 100.,-80.,80.,'',1.,'%']
+        plot_dic['Q']      = ['Specific Humidity',1000., 1., 12.,-5,5.,'q',1000.,'g/kg']
+ 
+        plot_dic['TH']  = ['Potential Temperature',1., 295, 305.,-20.,20.,'t',1.,'K']
+        plot_dic['THL']  = ['Liquid Water Potential Temperature',1., 270, 310.,-20.,20.,'thl',1.,'K']
+        plot_dic['THLV']  = ['Virtual Potential Temperature', 1., 270, 310.,-20.,20.,'tv',1.,'K']
+    
+        plot_dic['DCQ']  = ['Humidity Tendencies - Moist Processes',1000., -5., 5.,-5.,5.,'',1.,'g/kg/day']
+        plot_dic['DTCOND']  = ['Temperature Tendencies - Moist Processes',86400., -10., 10.,-10.,10.,'',1.,'K/day']   
+    
+        plot_dic['ZMDT']  = ['Temperature Tendencies - Deep Convection',86400., -10., 10.,-10.,10.,'',1.,'K/day']
+        plot_dic['ZMDQ']  = ['Humidity Tendencies - Deep Convection',86400.*1000., -2, 2.,-8.,8.,'',1.,'g/kg/day']
+    
+        plot_dic['CMFDT']  = ['Temperature Tendencies - Shallow Convection',86400., -10., 10.,-10.,10.,'',1.,'K/day']
+        plot_dic['CMFDQ']  = ['Humidity Tendencies - Shallow Convection',86400.*1000., -2, 2.,-8.,8.,'',1.,'g/kg/day']
    
-
-
-### PERDIGAO ###
     
-    if case_iop=='PERDIAGO':
-        scam_file_suf = ".cam.h0.2013-06-10-39600" # most recent IC data (>=21)
-        zoffset = 0.
-
-#### LES model selections ####
-
-        les_files_in = {}
-        les_files_in['NCAR'] = "patton_perdigao_stats.nc"
+                              
+# BL/Turb. vars.                             
+        plot_dic['DTV']  = ['Temperature Tendencies - Vertical Diffusion',86400., -30., 13.,-10.,10.,'',1.,'K/day']
+        plot_dic['VD01']  = ['Humidity Tendencies - Vertical Diffusion',86400.*1000., -50, 50.,-8.,8.,'',1.,'g/kg/day']
     
-    return(scam_file_pre,scam_file_suf,les_files_in,zoffset)
+        plot_dic['STEND_CLUBB']    = ['Temperature Tendencies - CLUBB',86400./1000., -20, 20,-2.,2.,'',1.,'K/day'] #J/kg.s -> K/day
+        plot_dic['RVMTEND_CLUBB']  = ['Humidity Tendencies - CLUBB',1000.*86400, -50., 50.,-20.,20.,'',1.,'g/kg/day']
+                                                       
+        plot_dic['WPRTP_CLUBB'] = ['w,q - Flux Covariance - CLUBB',1., -0., 600.,-50.,50.,'wq_r',Lv,'W/m^2']
+        plot_dic['WPTHLP_CLUBB'] = ['w,thl - Flux Covariance - CLUBB',1., -100., 100.,-50.,50.,'wt_r',cp_air,'W/m^2']
+        plot_dic['WPTHVP_CLUBB'] = ['w,thv - Flux Covariance - CLUBB',1., -100., 100.,-50.,50.,'',1.,'W/m^2']
+        
+        plot_dic['THLP2_CLUBB'] = ['T^2 - Variance - CLUBB',1., 0., 0.15,-50.,50.,'tt_r',1.,'K^2']   
+        plot_dic['RTP2_CLUBB'] = ['q^2 - Variance - CLUBB', 1., 0., 2.5,-0.5,0.5,'qq_r',1000.*1000.,'g^2/kg^2'] 
+ 
+        plot_dic['WP2_CLUBB'] = ['w^2 - Variance - CLUBB', 1., 0., 1.5,-0.5,0.5,'ww_r',1.,'m^2/s^2'] 
+        plot_dic['WP3_CLUBB'] = ['w^3 - Skewness  - CLUBB',1., 0., 1.5,-0.2,0.2,'www_r',1.,'m^3/s^3']
+ 
+
+
+
+
+
+    return plot_dic
