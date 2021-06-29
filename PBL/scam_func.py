@@ -45,7 +45,7 @@ r_cp = r_gas/cp_air    # r/cp
 
 
 ################################
-#   1D Timeseries plotting     #
+#   1D tseries plotting     #
 ################################
 
 
@@ -57,25 +57,13 @@ def plot1d_ts_scam(rinfo):
     """
     
     
-    # Grab variable information for plotting
+# Grab variable information for plotting
 	
     
-    plot1d_dic = var_plot_setup("1d_ts")
-    
-   
+    plot1d_df = var_plot_setup("1d_ts",rinfo['Var List'])
 
 
-    ## Data Frame ##	
-    plot1d_df = pd.DataFrame.from_dict(plot1d_dic, orient='index',
-                                       columns=['long_name','units','vscale','ymin','ymax','var_les','lscale'])
-    #	plot1d_df = plot1d_df.style.set_properties(**{
-    #		'background-color': 'grey',
-    #		'font-size': '20pt'})
-
-    
-   
-
-
+## SPECIFIC LEGEND LOCATIONS
 
     vleg_left = ['PBLH','PBLH_DTH','PBLH_DQ'] # Vars. to put legend on the left not right.
 
@@ -109,14 +97,19 @@ def plot1d_ts_scam(rinfo):
     fig1 = mp.figure(figsize=(16, 5))
     ax1 = fig1.add_subplot(111)
     
-# Display all available variables    
 
-    if (pvars_list) : print(plot1d_df) 
+    
+    
+    
 
-    ## 1D PLOTS ##
-    #mp.rcParams['figure.dpi'] = 50
+    
+    
+#################
+### LOOP VARS ###
+#################
 
-
+    
+    
     for var in pvars_ts1d:
         
         print('================================================================================================')
@@ -136,28 +129,31 @@ def plot1d_ts_scam(rinfo):
             pvar = None
             if (srun_names[icase] == 'LES' and var_les == ''): 
                 continue
-           
-#            scam_icase = xr.open_dataset(sfiles_in[icase],engine='netcdf4')
+
+# GRAB Case data (SCAM or LES)
             scam_icase = scam_open_files(case_iop,sfile_nums[icase],srun_names[icase],dir_root)
         
         
     
-    ## SCAM time and var
+## SCAM time and var
             if sfile_nums[icase] !='LES': 
                 
                 time = scam_icase.time
-                print(time)
-#                print(scam_icase)
-#                hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset
-#                hour_frac = hour_frac.values
-#                hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac) # Makes continuous time when day goes into next day.
-                hour_frac =time.dt.strftime("%H-%M") # Works for time axis and labeling
-                print(hour_frac)
-        
-#                print(dir(time.time))
-#                print(time.dt.dayofyear)
-#                date_form = DateFormatter("%m-%d")
-               
+                
+# The hour_frac time is for interpolation from LES to SCAM time.
+                hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset
+                hour_frac = hour_frac.values
+                hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac) # Makes continuous time when day goes into next day.
+                
+# Offxet time datetime object with the zoffset local time
+                time = time + dt.timedelta(hours=zoffset) # Works for time axis and labeling
+#                xhour_frac = time.dt.strftime("%H") 
+            
+## NEED TO MOVE ALL THIS BELOW INBTO A FUNCTION ##
+
+                if var == 'PRECT':
+                    pvar = scam_icase['PRECC'].isel(lat=0,lon=0)+scam_icase['PRECL'].isel(lat=0,lon=0)
+                        
                 if var in ['PBLH_DTHL','PBLH_DQ','PBL_DQMAX']:  # PBL derived from d(thl/dz)
 
                     # Set up height instead of pressure
@@ -192,9 +188,8 @@ def plot1d_ts_scam(rinfo):
 
                     pvar.attrs['long_name'] = 'Height of max. Liq. Water Potential Temperature gradient'
                     pvar.attrs['units'] = 'm' 
-					
-					
-                #				with xr.set_options(keep_attrs=True) and pvar is None: 
+						
+      
                 if pvar is None:
                     pvar = vscale*scam_icase[var].isel(lat=0,lon=0)
 
@@ -204,13 +199,14 @@ def plot1d_ts_scam(rinfo):
                 
             if sfile_nums[icase] =='LES':
                 
-                ## Time stuff first
+
+## NEED TO MOVE INTO A ROUTINE ##
                 les_tstart = scam_icase['ts'] # Start time (local?) seconds after 00
                 les_time = scam_icase['time'] # Time (from start?) in seconds
 
-                les_toffset = -0. # Strange time stuff in LES
+                les_toffset = 0. # Strange time stuff in LES
                 hour_frac_les = (les_tstart+les_time)/3600.+les_toffset  # Transform into hours
-                hour_frac = hour_frac_les
+                
                 
                 ## Specfici quantity based on Q
                 if var in ['PBL_DQMAX']:
@@ -238,33 +234,41 @@ def plot1d_ts_scam(rinfo):
                
 
             # Interpolate to SCAM time.
-      
-                fles_int = spy.interpolate.interp1d(hour_frac_les.values,pvar,bounds_error=False)
 
+                fles_int = spy.interpolate.interp1d(hour_frac_les.values,pvar,bounds_error=False)
                 
             # Map to hour_frac time.
                 pvar = fles_int(hour_frac)
+        
                 
             # Convert to xarray Dataset for consistancy with SCAM
                            
                 pvar = xr.DataArray(pvar)
                 
 
-                
+           
 ## Merge back in for uniform plotting ##
             
+            print(" --> ",sfile_nums[icase],' -- ',srun_names[icase], ' -- ymin/ymax --> ',  np.nanmin(pvar.values),np.nanmax(pvar.values)," <-- ",)
            
-            print(" --> ",sfile_nums[icase],' -- ',srun_names[icase], ' -- ymin/ymax --> ',  np.min(pvar.values),np.max(pvar.values)," <-- ",)
-           
-            ax1.plot(time,pvar)
-#           
+## Add to plot with the SCAM time coordinate
 
-            
-#            ax.set_major_formatter(date_form)
-			
-# End of case loop here #
+
+            ax1.plot(time,pvar)
+
+    
+    
+#### #### #### #### #### #### 
+##### END OF TIME LOOP ######
+#### #### #### #### #### #### 
 				            
-# Observed?
+    
+    
+    
+    
+    
+    
+# Observations
 
         plot_names = srun_names
 
@@ -280,18 +284,28 @@ def plot1d_ts_scam(rinfo):
 
         # Axes stuff
         
-         
-#            ax1.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-#        time_stride = mdates.HourLocator(interval = 1)  ;  myFmt = mdates.DateFormatter('%H')
-        time_stride = mdates.DayLocator(interval = 2)  ;  myFmt = mdates.DateFormatter('%D')
+        
+## THESE ARE ALL OPTIONS FOR 'PRETTY' XAXIS INTERVALS (hrs for < 1day or days if > 1 day )
+        
+        print(time.dt.day.values)
+        npdays = (time.dt.day[-1].values-time.dt.day[0].values)
+        
+        print(npdays)
+        if npdays <= 1: # Only hour plotting for 1 day or less.
+            time_stride = mdates.HourLocator(interval = 1)  ;  myFmt = mdates.DateFormatter('%H') ##### EVERY DAY
+        else:
+            time_stride = mdates.DayLocator(interval = 2)  ;  myFmt = mdates.DateFormatter('%D') ##### EVRY DAY
             
-        mp.gcf().autofmt_xdate()
+        mp.gcf().autofmt_xdate() # Diagonal xtick labels.
        
         ax1.xaxis.set_major_formatter(myFmt)
         ax1.xaxis.set_major_locator(time_stride)
         
+        
+### RES T IF LABELING
+        
         ax1.set_ylim([ymin,ymax])
-        ax1.set_xlim(time.min,time.max)
+#        ax1.set_xlim(hour_frac,hours_frac)
         ax1.set_xlabel("Local Time (hr)")
         ax1.set_ylabel(plot1d_df.loc[var]['units'])
         ax1.set_title(plot1d_df.loc[var]['long_name'])
@@ -341,23 +355,19 @@ def plot2d_ts_scam(rinfo):
     
     
 
-  # Grab variable information for plotting
+# Grab variable information for plotting and optional printing of info for all vars
 	
     
-    plot2d_dic = var_plot_setup("2d_ts")
+    plot2d_df = var_plot_setup("2d_ts",rinfo['Var List'])  
     
 
 
     ### Vars that do not have -ve values in their full field.                             
 
     var_cmap0 = ['T','RELHUM','Q','CLOUD','THL','THV','WPRTP_CLUBB','WP2_CLUBB','WP3_CLUBB','THLP2_CLUBB']
-    #    plot2d_df = pd.DataFrame(plot2d_dic,index=['vscale','cmin','cmax','acmin','acmax','units'])
+   
 
-    plot2d_df = pd.DataFrame.from_dict(plot2d_dic, orient='index', \
-        columns=['long_name','vscale','cmin','cmax','acmin','acmax','var_les','lscale','units'])
-
-    #    print(plot2d_df.style.set_table_styles([{'selector':'','props':[('border','4px solid #7a7')]}]))
-    #   print(plot2d_df)
+#    print(plot2d_df)
 
   
     
@@ -387,7 +397,7 @@ def plot2d_ts_scam(rinfo):
 
 # Display all available variables    
 
-    if (pvars_list) : print(plot2d_df) 
+#    if (pvars_list) : print(plot2d_df) 
 
     
     ## Derived vars.	
@@ -437,15 +447,18 @@ def plot2d_ts_scam(rinfo):
        
 
         ### First case plot (could be only plot) ###
-#        scam_icase = xr.open_dataset(sfiles_in[0],engine='netcdf4') 
+
         scam_icase = scam_open_files(case_iop,sfile_nums[0],srun_names[0],dir_root)
         
         plevm,zlevm = vcoord_scam('mid',scam_icase)
         plevi,zlevi = vcoord_scam('int',scam_icase)
 
         dzbot = 1000.*mpc.pressure_to_height_std(plevi[-1])
-
-
+        scam_icase["time"] = scam_icase.time.assign_attrs(calendar="noleap")
+       
+#        scam_icase.time.attrs['calendar'] = 'noleap'
+#        xr.decode_cf(scam_icase, decode_times=True)
+        
         ### Derived Met variables ###
         if var in ['TH','THL','THV'] : 
             pvar = dev_vars_scam(var,scam_icase)
@@ -461,8 +474,9 @@ def plot2d_ts_scam(rinfo):
         plev = plevi[0,:] if 'ilev' in pvar.dims else plevm[0,:]
         zlev = zlevi[0,:] if 'ilev' in pvar.dims else zlevm[0,:]
         time = scam_icase.time
+        
 
-        #        time_plot = time.time.dt.monotonic
+#        time_plot = time.time.dt.monotonic
         hour_frac = time.time.dt.hour+time.time.dt.minute/60.+zoffset
         hour_frac = hour_frac.values
         hour_frac = np.where(hour_frac<0,hour_frac+24.,hour_frac)
@@ -482,13 +496,19 @@ def plot2d_ts_scam(rinfo):
         fig1 = mp.figure(figsize=(16, 5))
         ax1 = fig1.add_subplot(111)
         pvar0 = vscale*pvar
+      
+        
+        time = time + dt.timedelta(hours=zoffset) # Works for time axis and labeling
+
+#        time = dt.datetime(time)
+#        xtime = time.dt.strftime("%H") 
         
 #        pcmap=cmap_full # First plot always full field and cmpa option
         pcmap=cmap_full if var in var_cmap0 else cmap_anom
 #        pvarp = pvarp-pvarp[:,0] # Remove initial column values
        
         plt0 = ax1.contourf(hour_frac,zlev,pvar0,levels=plevels,cmap=pcmap, extend='both')   
-        if ptype !='full': mp.colorbar(plt0)
+        if ptype !='full' or ncases==1 : mp.colorbar(plt0)
     
         plt0 = ax1.contour(hour_frac,zlev,pvar0,levels=plevels,colors='black',linewidths=0.75)       
         ax1.clabel(plt0, fontsize=8, colors='black')
@@ -503,7 +523,7 @@ def plot2d_ts_scam(rinfo):
         ax1.set_xlabel("Local Time (hr)")  
         #        ax1.set_ylim(ppmin, ppmax)
         ax1.set_ylim(zzmin,zzmax)
-        ax1.set_xlim(ttmin, ttmax)  
+#        ax1.set_xlim(5, 17)  
         #        ax1.invert_yaxis()  
         
         # Change contouring for subsequent plots of diff/anom selected
@@ -571,34 +591,8 @@ def plot2d_ts_scam(rinfo):
 ####### LES Specific #######
 
             if sfile_nums[icase] =='LES': 
-
-                lscale = plot2d_df.loc[var,'lscale']
-                les_tstart = scam_icase['ts'] # Start time (local?) seconds after 00
-                les_time = scam_icase['time'] # Time (from start?) in seconds
-
-                les_toffset = 0. # Strange time stuff in LES?
-                hour_frac_les = (les_tstart+les_time)/3600.+les_toffset  # Transform into hours
-                hour_frac = hour_frac_les 
-
-
-            ## Variable ##
-
-                var_les = plot2d_df.loc[var,'var_les']      
-                data_les = scam_icase[var_les] # Read in data # 
-                nz_les = scam_icase.sizes['nz']
-                data_les = data_les*lscale
-
-                plev_les = scam_icase['p']
-                plev = 0.01*plev_les
-                zlev = scam_icase['zu']
-
-                pvarp = data_les
-                
-            ## Set coordinate for data
+                pvarp,hour_frac,zlev = get_les_dset(scam_icase,plot2d_df,var)
                 pvarp = pvarp.transpose()
-                nz_les = pvarp.sizes['nz']
-                zlev = zlev[1,0:nz_les]
-
 
         ##### PLOTS #####                                                                
         ### Reshape sub-fig placements ###          
@@ -709,13 +703,7 @@ def plot1d_snap_scam(rinfo):
 # Grab variable information for plotting
 	
     
-    plot_snap_dic = var_plot_setup("1d_snap")
-
-
-
-# Array frame
-    plot_snap_df = pd.DataFrame.from_dict(plot_snap_dic, orient='index', \
-        columns=['long_name','vscale','cmin','cmax','acmin','acmax','var_les','lscale','units'])
+    plot_snap_df = var_plot_setup("1d_snap",rinfo['Var List'])
 
     
 
@@ -761,7 +749,7 @@ def plot1d_snap_scam(rinfo):
     
     
     
-	## Derived vars.	
+## Derived vars.	
     ncases = srun_names.size 
     ntsnaps = tsnaps.size
     
@@ -839,44 +827,20 @@ def plot1d_snap_scam(rinfo):
 
           ### Determine Vertical Coord (lev/ilev) + time ###
                 plev = plevi[0,:] if 'ilev' in pvar.dims else plevm[0,:]
-                zlev = zlevi[0,:] if 'ilev' in pvar.dims else zlevm[0,:]               
+                zlev = zlevi[0,:] if 'ilev' in pvar.dims else zlevm[0,:] 
+                pvar = pvar*vscale
                     
                
             
             if sfile_nums[icase] == 'LES':
+                pvar,hour_frac,zlev = get_les_dset(scam_icase,plot_snap_df,var)
                 
                 pblh_dq = scam_icase['zi_q'] # THis seems wrong compared to q field
                 pblh_dt = scam_icase['zi_t'] # This seems right
+
                 
-                
-                vscale = plot_snap_df.loc[var,'lscale']
-                les_tstart = scam_icase['ts'] # Start time (local?) seconds after 00
-                les_time = scam_icase['time'] # Time (from start?) in seconds
+### PRINT SOME CASE INFO ###
 
-                les_toffset = 0. # Strange time stuff in LES?
-                hour_frac_les = (les_tstart+les_time)/3600.+les_toffset  # Transform into hours
-                hour_frac = hour_frac_les 
-
-
-            ## Variable ##
-
-                var_les = plot_snap_df.loc[var,'var_les']      
-                data_les = scam_icase[var_les] # Read in data # 
-                nz_les = scam_icase.sizes['nz']
-
-                plev_les = scam_icase['p']
-                plev = 0.01*plev_les
-                zlev = scam_icase['zu']
-                
-            ## Set coordinate for data ##
-                pvar = data_les
-                nz_les = pvar.sizes['nz']
-                zlev = zlev[1,0:nz_les]
-
-
-            pvar = pvar*vscale
-                
-#  
             print(' -->  ', \
                     srun_names[icase],' -- ',sfile_nums[icase],' -- ', np.min(pvar.values),np.max(pvar.values))
 
@@ -1188,8 +1152,11 @@ def pbl_grad_calc(var_grad,scam_in):
 
 # Map to a height level    
     
-    var = zhgt.isel(lev=dvardz_kmin.isel(lat=0,lon=0))
-	
+    var = zhgt.isel(lev=dvardz_kmin)
+
+	# For compatability with more scripts   
+    if 'lat' in list(var.dims): var = var.isel(lat=0,lon=0)
+
     return (var)
 	
 	
@@ -1214,9 +1181,15 @@ def pbl_grad_calc(var_grad,scam_in):
     
 def vcoord_scam(imlev,scam_in):
 
-    plevm = scam_in['hyam']*p0 + scam_in['hybm']*scam_in['PS'].isel(lat=0,lon=0) # Mid level
-    plevi = scam_in['hyai']*p0 + scam_in['hybi']*scam_in['PS'].isel(lat=0,lon=0) # Interface level
-	
+ 
+    
+    plevm = scam_in['hyam']*p0 + scam_in['hybm']*scam_in['PS'] # Mid level
+    plevi = scam_in['hyai']*p0 + scam_in['hybi']*scam_in['PS'] # Interface level
+    
+ # For compatability with more scripts   
+    if 'lat' in list(plevm.dims):
+        plevm = plevm.isel(lat=0,lon=0)
+        plevi = plevi.isel(lat=0,lon=0)
     
     plevm = plevm.transpose('lev','time')  # Force this ordering for constructing profiles (some cases differ)
     plevi = plevi.transpose('ilev','time')
@@ -1274,6 +1247,7 @@ def vcoord_scam(imlev,scam_in):
 def dev_vars_scam(var_name,sfile_in):
     
     plevm = sfile_in['hyam']*p0 + sfile_in['hybm']*sfile_in['PS'].isel(lat=0,lon=0)
+    if 'lat' in list(plevm.dims): plevm = plevm.loc(lat=0,lon=0) # For compatability with more scripts
    
     if var_name in ['TH','THL','THV'] : 
         theta = sfile_in['T'].isel(lat=0,lon=0).transpose()*(p0/plevm)**r_cp #
@@ -1376,7 +1350,9 @@ def scam_open_files(case_iop,file_num,run_name,dir_main):
         files_dir = dir_main+'history/'
         
         files_pre = files_dir+'FSCAM.T42_T42.'+case_iop+'.' 
-        files_list = files_pre+file_num+'*nc'
+        
+# NEED TO CLEAN UP THIS FILE LOGIC TO BE MORE SPECIFIC
+        files_list = files_pre+file_num+'.cam.h0*00.nc'
   
         print(files_list)
 
@@ -1387,9 +1363,9 @@ def scam_open_files(case_iop,file_num,run_name,dir_main):
             stdout1 = sp.check_output('ls '+files_list, shell=True)
         except sp.CalledProcessError as e:
             print(case_iop+' - '+run_name+' - Files Not Present - EXITING...')
-#            sys.exit(' *** EXITING ***')
-            
-            
+
+# Call to OS ls command
+
         files_in = sp.getoutput('ls '+files_list)
                 
 # Convert string to an array    
@@ -1401,13 +1377,14 @@ def scam_open_files(case_iop,file_num,run_name,dir_main):
         zoffset,iop_day,ttmin,ttmax = get_iop_info(case_iop)
     
 # Check for and concatonate multiple files
-        
+# Multi
         if len(files_in) > 1:
-            iop_dset = xr.open_mfdataset(files_in,)
-            
-            
-#print(iop_dset.time)
+            print(files_in)
+            iop_dset = xr.open_mfdataset(files_in)
+                        
         else :
+            
+# Single
             iop_dset = xr.open_dataset(files_in[0],engine='netcdf4') 
             
 # Trim to desired data
@@ -1434,6 +1411,52 @@ def scam_open_files(case_iop,file_num,run_name,dir_main):
 
 
 
+####################################################################
+### GET LES DATA FROM FILES (currently on NCAR nc file from Ned) ###
+####################################################################	
+
+
+def get_les_dset(les_dset,plot_df,var):
+
+####### LES Specific #######
+         
+
+    lscale = plot_df.loc[var,'lscale']
+    les_tstart = les_dset['ts'] # Start time (local?) seconds after 00
+    les_time = les_dset['time'] # Time (from start?) in seconds
+
+    les_toffset = 0. # Strange time stuff in LES?
+    hour_frac_les = (les_tstart+les_time)/3600.+les_toffset  # Transform into hours
+        
+
+## Variable ##
+
+    var_les = plot_df.loc[var,'var_les']      
+    data_les = les_dset[var_les] # Read in data # 
+    data_les = data_les*lscale
+
+    plev_les = les_dset['p']
+    plev = 0.01*plev_les
+    zlev = les_dset['zu']
+
+    les_pvarp = data_les
+
+    
+## Set coordinate for data
+    
+    nz_les = les_pvarp.sizes['nz']
+    zlev = zlev[1,0:nz_les]
+
+    
+## RETURN INFO FOR. PLOTTING
+    return(les_pvarp,hour_frac_les,zlev)
+
+
+
+
+
+
+
 
 
 
@@ -1448,7 +1471,7 @@ def scam_open_files(case_iop,file_num,run_name,dir_main):
 
 
 
-def var_plot_setup (plot_set) :
+def var_plot_setup (plot_set,all_vars_info) :
 
     plot_dic = {}
 
@@ -1468,6 +1491,16 @@ def var_plot_setup (plot_set) :
         plot_dic['FLNS']   = ['Surface Net Short-wave Radiation','W/m2',1., 200., 800.,'',1.]
         plot_dic['CAPE']   = ['CAPE','J/kg',1., 0., 800.,'',1.]
 
+        
+        plot_df = pd.DataFrame.from_dict(plot_dic, orient='index',
+            columns=['long_name','units','vscale','ymin','ymax','var_les','lscale'])
+        
+        
+        
+        
+        
+        
+        
 # 2D TIMESERIES 
         
     if (plot_set=='2d_ts') :
@@ -1535,7 +1568,26 @@ def var_plot_setup (plot_set) :
         plot_dic['WP3_CLUBB']   = ['w^3 - Skewness  - CLUBB', \
             1., 0., 0.5,-0.05,0.05,'www_r',1.,'m^3/s^3']
         
+#### TURN INTO DATFRAME ####
+        
+        plot_df = pd.DataFrame.from_dict(plot_dic, orient='index', \
+            columns=['long_name','vscale','cmin','cmax','acmin','acmax','var_les','lscale','units'])
 
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 # 1D SNAPSHOT PROFILE PLOTS
 
     if (plot_set=='1d_snap') :
@@ -1577,9 +1629,22 @@ def var_plot_setup (plot_set) :
         plot_dic['WP2_CLUBB'] = ['w^2 - Variance - CLUBB', 1., 0., 1.5,-0.5,0.5,'ww_r',1.,'m^2/s^2'] 
         plot_dic['WP3_CLUBB'] = ['w^3 - Skewness  - CLUBB',1., 0., 1.5,-0.2,0.2,'www_r',1.,'m^3/s^3']
  
+        plot_df = pd.DataFrame.from_dict(plot_dic, orient='index', \
+            columns=['long_name','vscale','cmin','cmax','acmin','acmax','var_les','lscale','units'])
+
+    
+    
+    
+    
+### LIST VARIABLE AND INFO IF REQUESTED ###
+    
+   
+    if (all_vars_info):
+        print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+        print('++++++++++++ ALL AVAILABLE VARIABLES FOR => ',plot_set,' <= ++++++++++')
+        print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+        display(plot_df)
+#    print(plot2d_df.style.set_table_styles([{'selector':'','props':[('border','4px solid #7a7')]}]))
 
 
-
-
-
-    return plot_dic
+    return plot_df
