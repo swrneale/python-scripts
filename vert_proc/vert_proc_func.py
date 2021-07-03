@@ -3,7 +3,6 @@
 ######################################################
 
 import numpy as np
-import matplotlib.pyplot as mp
 import xarray as xr
 import datetime as dt
 #import monthdelta 
@@ -12,17 +11,13 @@ import cartopy.crs as ccrs
 import pandas as pd
 import pygrib as pyg # Read in grib for analyses (ECMWF)
 
-
-
+import matplotlib.pyplot as mp
+import matplotlib.dates as mdates
+from matplotlib.dates import DateFormatter
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 
-
-
-
-
-
-
+from nc_time_axis import CalendarDateTime
 
 
 
@@ -49,120 +44,140 @@ def nino_sst_anom(run_case,sst_data,nino):
     # Nino regions (S/N/W/E) 
     nino_reg = {}
     
-    nino_reg['nino1+2']   = [-10.,0.,270.,280.]
+    nino_reg['nino1+2'] = [-10.,0.,270.,280.]
     nino_reg['nino3']   = [-5.,5.,210.,270.]
     nino_reg['nino3.4'] = [-5.,5.,190.,240.]   
     nino_reg['nino4']   = [-5.,5.,160.,210.]
     nino_reg['nino5']   = [-5.,5.,120.,140.]
     nino_reg['nino6']   = [8.,16.,140.,160.]
     
-    print('-- Calculating for ',nino,' region')
+    print('')
+    print('--')
+    print('-- Calculating for SST anomalies ',nino,' region')
+    print('--')
+    print('')
     
 # Set nino averaging domain
     nino_s = nino_reg[nino][0] ; nino_n = nino_reg[nino][1]
     nino_w = nino_reg[nino][2] ; nino_e = nino_reg[nino][3]
 
+ 
     
 ## Be careful as the time a coordinate is 1 month off FEB actually = JAN as detrmined by the cftime coordinate.
     
 # Read in TS (SSTs) from inputdata HadISST for now.  
-#    print(sst_data)
+
     sst_ts = sst_data.loc[:,nino_s:nino_n,nino_w:nino_e].mean(dim=['lat','lon']) 
     sst_ts = sst_ts.compute()
    
 #    sst_ts = h0_month_fix(sst_ts)
    
 
-## IF TS/SST data comes from history files may need to check that first file should be Jan and Not Feb    
+## If TS/SST data comes from history files may need to check that first file should be Jan and Not Feb    
 ## Remove average for each month of year (annual cycle)
 #    sst_data.time = sst_data.time + dt.timedelta(month=1)
 #    sst_sata.time = sst_data.time + relativedelta(-1)
 
     
-    mnames_all = sst_data.time.dt.strftime("%b") 
-    year_all = sst_data.time.dt.strftime("%Y") 
+    mnames_all = sst_ts.time.dt.strftime("%b") 
+    year_all = sst_ts.time.dt.strftime("%Y") 
     time_axis = np.arange(0,year_all.size)
-    print(mnames_all)
     
-    # Find unique months for removal of annual cycle.
+# Find unique months for removal of annual cycle.
 
     mnames = np.unique(mnames_all)
     
-    # Loop of months of the year and remove the annual cycle.
-
-    ''' FIND AND REMOVE ANNUAL CYCLES '''
-    print(mnames)
-    print(mnames_all)
-  
-    print(year_all)
-
+    ''' RESET FEB->JAN h0 FILE TIMESTAMP (CESM1)'''
     
-
-    ### REMOVE ANNUAL CYCLE ##
-
 #    sst_ts = sst_ts.resample('M')
 
+    ''' FIND AND REMOVE ANNUAL CYCLE '''
 
+    print('-- Removing SST Annual Cycles --')
     for imname in mnames :
-        print(imname)
         imon_ts = mnames_all == imname
         sstm = sst_ts[imon_ts].mean()
         sst_ts[imon_ts] = sst_ts[imon_ts] - sstm
 
   
-    
-#    for im in mnames:
-    # Match months in time series (logical).
-#        lmm = mnames_all==im
-#        print(lmm)
-        
-    # Determine indices of matching months
-#        imm = [i for i, val in enumerate(lmm) if val] 
-#        print(imm)
-        
-    # Average of this month
-#        sst_mmon = np.mean(sst_ts[imm])
-#        print(sst_ts[imm])
-#        print(sst_mmon)
-
-    # Populate SST in each month to give anomaly from the annual average cycle.
-#        sst_ts = np.where(lmm,np.subtract(sst_ts,sst_mmon),sst_ts)
- #   print(sst_ts)
    
     ''' PLOTTING '''
+    
+    
+    print('-- Plotting SST anomalies --')
 
+    it_ticks = np.arange(0,len(year_all),12)    # Time axis arrays
     
-    it_ticks = np.arange(0,len(year_all),12)
+  
+    fig, axs = mp.subplots(figsize=(16, 5))
     
-    fig, ax = mp.subplots(figsize=(16, 5))
-    
-    
-    print(sst_ts.time)
 
-    ax.plot(time_axis,sst_ts,color='black')
-#    ax.set_title(nino+' SSTA for '+run_case)
+    axs.plot(time_axis,sst_ts,color='black')
+    axs.set_title(nino+' SSTA for '+run_case,fontsize=20)
     
-    print("hi2")
-    
-#    ax.set_xlabel("Year") 
-#    ax.set_ylabel("K") 
-#    ax.set_xticks(it_ticks+6)
-#    ax.set_xticklabels(year_all[it_ticks].values)
- 
-    print("hi3")
-    ax.fill_between(year_all,0.,sst_ts, where=sst_ts > 0,  facecolor='red', interpolate=True)
-    ax.fill_between(year_all,sst_ts, 0., where=sst_ts < 0, facecolor='blue', interpolate=True)
-    ax.xaxis.set_minor_locator(MultipleLocator(12))
-    ax.tick_params(which='minor', length=7)
+    ssta_thresh = np.std(sst_ts)
 
-    print("hi4")
-#    mp.hlines(0., min(sst_ts.time), max(time_axis), color='black',linestyle="solid",lw=1)
-#    mp.hlines([-np.std(sst_ts),np.std(sst_ts)], min(time_axis), max(time_axis), color='black',linestyle="dashed",lw=1)
+
+    ''' TIME AXIS GYMNASTICS '''
+    
+    axs.set_xlabel("Year",fontsize=15) 
+    axs.set_ylabel("K",fontsize=15) 
+    axs.set_xticks(it_ticks+6)
+    axs.set_xticks(it_ticks,minor=True)
+    axs.set_xticklabels(year_all[it_ticks].values,rotation=90.)
+    axs.tick_params(axis = "x", bottom = False) ; axs.tick_params(which='minor', length=10)
+
+# Fill above/below zero or +/- 1 std
+  
+    fill_min = ssta_thresh
+    
+    ''' FILL nino/nina MONTHS THAT ARE USED FOR COMPOSTIING '''
+    
+    axs.fill_between(time_axis,sst_ts,fill_min, where=sst_ts > fill_min,  facecolor='red', interpolate=True)
+    axs.fill_between(time_axis,sst_ts,-fill_min, where=sst_ts < -fill_min,  facecolor='blue', interpolate=True)
+
+    ''' PLOT SST THRESHOLD CRITERI LINES FR EVENT (e.g., +/- 1 standard deviation) '''
+    mp.hlines(0., min(time_axis), max(time_axis), color='black',linestyle="solid",lw=1)
+    mp.hlines([-ssta_thresh,ssta_thresh], min(time_axis), max(time_axis), color='black',linestyle="dashed",lw=1)
         
     
-    mp.show()    
+#    mp.show()    
+    
+    ''' SET INDICES OF NINO/NINA MONTHS BASED ON SPECIFIED CRITERIA'''
+    
+    inino_mons = np.where(sst_ts > ssta_thresh)
+    inina_mons = np.where(sst_ts < -ssta_thresh)
+    
+    
 
-    return nino_ts,nina_ts
+    
+#    sst_date =  [CalendarDateTime(item, '365_day') for item in sst_ts.time]
+#    print(sst_date)
+    
+#    print(sst_ts.time)
+#    ax.set_xticks(iticks)
+#    ax.set_xticklabels(tdate_day[iticks].values)
+    
+    
+#    time_stride = mdates.MonthLocator(interval = 12)  ;  myFmt = mdates.DateFormatter('%Y') ##### EVRY YEAR
+    
+#    mp.gcf().autofmt_xdate() # Diagonal xtick labels.
+#    print(time_stride)
+#    ax.xaxis.set_major_formatter(myFmt)
+#    ax.xaxis.set_major_locator(time_stride)
+#    ax.set_xlim(yr0, yr1)
+
+#    sst_yr = sst_ts.time.dt.strftime("%Y") 
+    
+
+       
+    
+#    ax.xaxis.set_major_locator(mdates.MonthLocator(12))
+#    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+#    ax.xaxis.set_minor_locator(MultipleLocator(12))
+#    ax.tick_params(which='minor', length=7)
+    
+    return inino_mons[0],inina_mons[0]
 
 
 
@@ -269,10 +284,10 @@ def get_files_type(case_name,case_type,var_cam,years) :
 
     allowed_types = ['cam','reanal']
 
-    if case_type not in allowed_types : print(case_type+ ' files - type not allowed')
-    if case_type     in allowed_types : print(case_type+ ' files - type allowed') 
+    if case_type not in allowed_types : print('-- case_type'+ ' files - type not allowed')
+    if case_type     in allowed_types : print('-- case_type'+ ' files - type allowed') 
 
-    print('-Grabbing data type/case -- '+case_type+' '+case_name)
+    print('-- Grabbing data type/case -- '+case_type+' '+case_name)
  
 
     yr0 = years[0]
@@ -284,23 +299,34 @@ def get_files_type(case_name,case_type,var_cam,years) :
     lcoord_names = False
 
     
-    if var_cam != 'TS':
+    
         
-        if case_type=='reanal' :
+    ''' ANALYSIS/OBSERVED '''
+        
+        
+    if case_type=='reanal' :
+            
+            
+        if var_cam != 'TS':
+            
+            
             dir_rda = '/glade/collections/rda/data/'
-            if case_name=='ERA5' :
-                var_anal_fmap = {'T': 't',   'Q':'q'}
-                var_anal_vmap = {'T': 'T',   'Q':'Q'}
+                   
+            
+            
+            if case_name=='ERA5' :    # This works but is incredibly slow because it is 0.25 deg.
+                var_anal_fmap = {'T': '132_t',   'Q':'133_q',  'OMEGA':'135_w'}
+                var_anal_vmap = {'T': 'T',       'Q':'Q',  'OMEGA':'W'}
                 var_vname = var_anal_vmap[var_cam] ; var_fname = var_anal_fmap[var_cam] 
                 rda_cat = 'ds633.1'
 
                 dir_glade = dir_rda+rda_cat+'/'
-                files_glade  = np.array([dir_rda+rda_cat+"/e5.moda.an.pl/%03d/e5.moda.an.pl.128_130_%s.ll025sc.%03d010100_%03d120100.nc"%(y,var_fname,y,y) for y in range(yr0,yr1+1)])
+                files_glade  = np.array([dir_rda+rda_cat+"/e5.moda.an.pl/%03d/e5.moda.an.pl.128_%s.ll025sc.%03d010100_%03d120100.nc"%(y,var_fname,y,y) for y in range(yr0,yr1+1)])
                 print(files_glade)
                 lat_rev = True
                 lcoord_names = True
             
-            if case_name=='ERAI' :
+            if case_name=='ERAI' :  ## UNFINSHED
                 var_anal_fmap = {'T': 't',   'Q':'q'}
                 var_anal_vmap = {'T': 'T',   'Q':'Q'}
                 var_vname = var_anal_vmap[var_cam] ; var_fname = var_anal_fmap[var_cam] 
@@ -314,35 +340,67 @@ def get_files_type(case_name,case_type,var_cam,years) :
                 print('hi4')
             
             
-            if case_name=='MERRA2' : #### NOT CLEAR MMEAN DATA AVAILABLE
+            if case_name=='MERRA2' : #### NOT CLEAR MMEAN DATA AVAILABLE: UNFINISHED
                 resn = '1.9x2.5'
 #            var_anal_fmap = {'T': '',   'Q':'q'}
                 var_anal_vmap = {'T': 'T',   'Q':'Q'}
                 var_vname = var_anal_vmap[var_cam] 
-                rda_cat = 'ds613.3'
+                rda_cat = 'ds313.3'
 
                 dir_glade = dir_rda+rda_cat+'/'
                 files_glade  = np.array([dir_rda+rda_cat+"/%s/%03d/MERRA2%03d010100_%03d120100.nc"%(resn,y,y,y) for y in range(yr0,yr1+1)])
                 print(files_glade)
             
     
+            if case_name=='JRA55' : #### NOT CLEAR MMEAN DATA AVAILABLE: UNFINSHED
+                resn = '1.9x2.5'
+#            var_anal_fmap = {'T': '',   'Q':'q'}
+                var_anal_vmap = {'T': 'T',   'Q':'Q'}
+                var_vname = var_anal_vmap[var_cam] 
+                rda_cat = 'ds628.3'
+
+                dir_glade = dir_rda+rda_cat+'/'
+                files_glade  = np.array([dir_rda+rda_cat+"/anl_p25/%03d/anl_p25.%03d010100_%03d120100.nc"%(y,var_fname,y,y) for y in range(yr0,yr1+1)])
+                print(files_glade)
+    
             
 #### GRAB CAM SST AMIP DATASET FOR NOW FOR ANALYSES
         
-    if (var_cam=='TS') :
-        print('- Grabbing file(s) for AMIP and REANALYSES from CESM inputdata -')
-        dir_inputdata = '/glade/p/cesmdata/cseg/inputdata/atm/cam/sst/'
-        hadisst_file = 'sst_HadOIBl_bc_0.9x1.25_1850_2020_c210521.nc'
-        files_glade = dir_inputdata+hadisst_file
-        var_vname = 'SST_cpl'
+        if (var_cam=='TS') :
+            print('-- Grabbing file(s) for AMIP and REANALYSES from CESM inputdata -')
+            dir_inputdata = '/glade/p/cesmdata/cseg/inputdata/atm/cam/sst/'
+            hadisst_file = 'sst_HadOIBl_bc_0.9x1.25_1850_2020_c210521.nc'
+            files_glade = dir_inputdata+hadisst_file
+            var_vname = 'SST_cpl'
 
+   
+    ''' MODEL OUTPUT '''
+
+
+    if case_type =='lens1':
+ 
+        dir_lens = '/glade/collections/cdg/data/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/'
+ 
+            print('-- Grabbing file(s) for LENS1 - Variable = ',var_cam)
+
+                dir_files = dir_lens+cam_var+'/'+case_name+'cam.h0' # Need OS call here
     
+                dir_glade = dir_rda+rda_cat+'/'
+                files_glade  = np.array([dir_rda+rda_cat+"/e5.moda.an.pl/%03d/e5.moda.an.pl.128_130_%s.ll025sc.%03d010100_%03d120100.nc"%(y,var_fname,y,y) for y in range(yr0,yr1+1)])
+                print(files_glade)
+                lat_rev = True
+                lcoord_names = True
+            
             
             
 ## POINT TO FILES ##
 
+#    data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 100,"latitude": 10, "longitude": 10}) ; HANGS!!
     
-    data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 1})
+#    data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 100})  ; 2.52mins (ERA5: 1979-1990)
+#     data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 12}) ; 3.15 mins
+    data_files = xr.open_mfdataset(files_glade,parallel=True) # 3 mins ERA5: 1979-1990
+     
     
 #    data_files = xr.open_mfdataset(files_glade)
     
