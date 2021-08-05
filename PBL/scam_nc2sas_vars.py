@@ -52,7 +52,10 @@ var_r['zi_q']   = ['Height of maximum specific humidity gradient','','[m]',1.]
 ### VARIANCES/CO-VARIANCES ###
 ##var_r['tke_r']  = ['Resolved TKE','','[m^2/s^2]',1.]
 var_r['ww_r']   = ['Resolved ww-covariance','WP2_CLUBB','[m^2/s^2]',1.]
+var_r['uu_r']   = ['Resolved uu-covariance','UP2_CLUBB','[m^2/s^2]',1.]
+var_r['vv_r']   = ['Resolved vv-covariance','VP2_CLUBB','[m^2/s^2]',1.]
 var_r['tt_r']   = ['Resolved pot. temp. variance','THLP2_CLUBB','[K^2]',1.] 
+
 
 var_r['wt_r']   = ['Resolved vertical pot. temp. flux','WPTHLP_CLUBB','[mK/s]',1./cp_air]
 var_r['qq_r']   = ['Resolved specific humidity variance','RTP2_CLUBB','[(kg/kg)^2]',1.]
