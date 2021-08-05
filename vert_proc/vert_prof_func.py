@@ -12,6 +12,7 @@ import pygrib as pyg # Read in grib for analyses (ECMWF)
 #import monthdelta 
 from dateutil.relativedelta import relativedelta
 
+## Plotting modules
 
 import cartopy as cart
 import cartopy.crs as ccrs
