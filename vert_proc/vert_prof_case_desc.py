@@ -13,6 +13,8 @@ def mdtf_case_list():
 # BL Vres
     rl['ERA5']   =  ['ERA5']
     rl['ERAI']   =  ['ERAI']
+    rl['JRA25']   =  ['JRA25']
+    
 
 
 
