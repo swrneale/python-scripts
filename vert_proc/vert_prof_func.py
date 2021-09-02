@@ -439,7 +439,7 @@ def cam_tend_var_get(files_ptr,var_name):
 ## >JRA-55 CISL-RDA ds628.9 : /glade/collections/rda/data/ds628.9/
 ##
     
-def get_files_type(case_name,case_type,var_cam,years) :
+def get_files_tseries(case_name,case_type,var_cam,years) :
 
     
     type_desc = {}
@@ -456,9 +456,9 @@ def get_files_type(case_name,case_type,var_cam,years) :
 
     yr0 = years[0]
     yr1 = years[1]
-    file_type = years[2]
+    
 
-    print('    -- File time type [climo/tseries] -- ',file_type)
+   
     
 ## GRAB ANALYSIS ##
 
@@ -490,123 +490,113 @@ def get_files_type(case_name,case_type,var_cam,years) :
             lfiles_rda = True if case_name in ['ERA5','ERAI'] else False
             
             
-            if file_type == 'tseries' :
+         
             
             
-                if case_name == 'ERA5' :    # This works but is incredibly slow because it is 0.25 deg.
+            if case_name == 'ERA5' :    # This works but is incredibly slow because it is 0.25 deg.
 
 
 
-                    rda_cat = 'ds633.1'
+                rda_cat = 'ds633.1'
 
-                    var_anal_fmap = {'T': '130_t',   'Q':'133_q',  'OMEGA':'135_w'}
-                    var_anal_vmap = {'T': 'T',       'Q':'Q',  'OMEGA':'W'}
+                var_anal_fmap = {'T': '130_t',   'Q':'133_q',  'OMEGA':'135_w'}
+                var_anal_vmap = {'T': 'T',       'Q':'Q',  'OMEGA':'W'}
 
-                    var_vname = var_anal_vmap[var_cam] ; var_fname = var_anal_fmap[var_cam] 
+                var_vname = var_anal_vmap[var_cam] ; var_fname = var_anal_fmap[var_cam] 
 
-                    var_ftype = 'uv' if var_cam in ['U','V'] else 'sc' 
-
-
-                    dir_glade = dir_rda+rda_cat+'/'
-                    files_glade  = np.array([dir_rda+rda_cat+"/e5.moda.an.pl/%03d/e5.moda.an.pl.128_%s.ll025%s.%03d010100_%03d120100.nc"%(y,var_fname,var_ftype,y,y) for y in range(yr0,yr1+1)])
-
-                    lat_rev = True
-                    lcoord_names = True
-
-                  
+                var_ftype = 'uv' if var_cam in ['U','V'] else 'sc' 
 
 
-                if case_name=='ERAI' :  ## UNFINSHED FOR RDA
+                dir_glade = dir_rda+rda_cat+'/'
+                files_glade  = np.array([dir_rda+rda_cat+"/e5.moda.an.pl/%03d/e5.moda.an.pl.128_%s.ll025%s.%03d010100_%03d120100.nc"%(y,var_fname,var_ftype,y,y) for y in range(yr0,yr1+1)])
+
+                lat_rev = True
+                lcoord_names = True
 
 
-                    var_anal_fmap = {'T': 't',   'Q':'q' , 'OMEGA':'w'}
-                    var_anal_vmap = {'T': 'T',   'Q':'Q',  'OMEGA':'w'}
-                    var_vname = var_anal_vmap[var_cam] ; var_fname = var_anal_fmap[var_cam] 
 
 
-                    if lfiles_rda :
-
-                        rda_cat = 'ds627.1'
+            if case_name=='ERAI' :  ## UNFINSHED FOR RDA
 
 
-                        if var_cam in ['T'] : var_fname = 'sc'
-                        if var_cam in ['U','V','OMEGA'] : var_fname = 'uv' 
+                var_anal_fmap = {'T': 't',   'Q':'q' , 'OMEGA':'w'}
+                var_anal_vmap = {'T': 'T',   'Q':'Q',  'OMEGA':'w'}
+                var_vname = var_anal_vmap[var_cam] ; var_fname = var_anal_fmap[var_cam] 
 
 
-                        dir_glade = dir_rda+rda_cat+'/'
-                        files_glade  = np.array([dir_rda+rda_cat+"/ei.moda.an.pl/ei.moda.an.pl.regn128%s.%03d%02d0100.nc"%(var_fname,y,m) for y in range(yr0,yr1+1) for m in range(1,12)])
+                if lfiles_rda :
 
-                        print('hi')
-                    else :
-
-                        files_glade  = np.array([dir_mydata+case_name+"/"+var_fname+".mon.mean.nc"])
-
-                        print(files_glade)
-                        print('hi4')
-
-                if case_name=='ERA40' :  ## UNFINSHED
-                    var_anal_fmap = {'T': 't',   'Q':'q'}
-                    var_anal_vmap = {'T': 'T',   'Q':'Q'}
-                    var_vname = var_anal_vmap[var_cam] ; var_fname = var_anal_fmap[var_cam] 
-                    if var_cam in ['T'] : var_fname = 'sc'
-                    if var_cam in ['U','V'] : var_fname = 'uv' 
                     rda_cat = 'ds627.1'
+
+
+                    if var_cam in ['T'] : var_fname = 'sc'
+                    if var_cam in ['U','V','OMEGA'] : var_fname = 'uv' 
+
 
                     dir_glade = dir_rda+rda_cat+'/'
                     files_glade  = np.array([dir_rda+rda_cat+"/ei.moda.an.pl/ei.moda.an.pl.regn128%s.%03d%02d0100.nc"%(var_fname,y,m) for y in range(yr0,yr1+1) for m in range(1,12)])
+
+                    print('hi')
+                else :
+
+                    files_glade  = np.array([dir_mydata+case_name+"/"+var_fname+".mon.mean.nc"])
+
                     print(files_glade)
+                    print('hi4')
+
+            if case_name=='ERA40' :  ## UNFINSHED
+                var_anal_fmap = {'T': 't',   'Q':'q'}
+                var_anal_vmap = {'T': 'T',   'Q':'Q'}
+                var_vname = var_anal_vmap[var_cam] ; var_fname = var_anal_fmap[var_cam] 
+                if var_cam in ['T'] : var_fname = 'sc'
+                if var_cam in ['U','V'] : var_fname = 'uv' 
+                rda_cat = 'ds627.1'
+
+                dir_glade = dir_rda+rda_cat+'/'
+                files_glade  = np.array([dir_rda+rda_cat+"/ei.moda.an.pl/ei.moda.an.pl.regn128%s.%03d%02d0100.nc"%(var_fname,y,m) for y in range(yr0,yr1+1) for m in range(1,12)])
+                print(files_glade)
 
 
-                if case_name=='MERRA2' : #### NOT CLEAR MMEAN DATA AVAILABLE FROM RDA
-                    resn = '1.9x2.5'
-    #            var_anal_fmap = {'T': '',   'Q':'q'}
-                    var_anal_vmap = {'T': 'T',   'Q':'Q'}
-                    var_vname = var_anal_vmap[var_cam] 
-                    rda_cat = 'ds313.3'
+            if case_name=='MERRA2' : #### NOT CLEAR MMEAN DATA AVAILABLE FROM RDA
+                resn = '1.9x2.5'
+#            var_anal_fmap = {'T': '',   'Q':'q'}
+                var_anal_vmap = {'T': 'T',   'Q':'Q'}
+                var_vname = var_anal_vmap[var_cam] 
+                rda_cat = 'ds313.3'
 
-                    dir_glade = dir_rda+rda_cat+'/'
-                    files_glade  = np.array([dir_rda+rda_cat+"/%s/%03d/MERRA2%03d010100_%03d120100.nc"%(resn,y,y,y) for y in range(yr0,yr1+1)])
-                    print(files_glade)
-
-
-                if case_name=='JRA55' : #### NOT CLEAR MMEAN DATA AVAILABLE FROM RDA
-                    resn = '1.9x2.5'
-    #            var_anal_fmap = {'T': '',   'Q':'q'}
-                    var_anal_vmap = {'T': 'T',   'Q':'Q'}
-                    var_vname = var_anal_vmap[var_cam] 
-                    rda_cat = 'ds628.3'
-
-                    dir_glade = dir_rda+rda_cat+'/'
-                    files_glade  = np.array([dir_rda+rda_cat+"/anl_p25/%03d/anl_p25.%03d0.nc"%(y,var_fname,y,y) for y in range(yr0,yr1+1) for m in range(1,12)])
-                    print(files_glade)
-
-                if case_name=='JRA25' : #### Old but nc monthly data available from RDA (1979-2005)
-                    resn = '1.9x2.5'
-    #            var_anal_fmap = {'T': '',   'Q':'q'}
-                    var_anal_vmap = {'T': 'TMP_PRS',   'Q':'Q', 'OMEGA':'W'}
+                dir_glade = dir_rda+rda_cat+'/'
+                files_glade  = np.array([dir_rda+rda_cat+"/%s/%03d/MERRA2%03d010100_%03d120100.nc"%(resn,y,y,y) for y in range(yr0,yr1+1)])
+                print(files_glade)
 
 
-                    var_vname = var_anal_vmap[var_cam] 
-                    rda_cat = 'ds625.1'
+            if case_name=='JRA55' : #### NOT CLEAR MMEAN DATA AVAILABLE FROM RDA
+                resn = '1.9x2.5'
+#            var_anal_fmap = {'T': '',   'Q':'q'}
+                var_anal_vmap = {'T': 'T',   'Q':'Q'}
+                var_vname = var_anal_vmap[var_cam] 
+                rda_cat = 'ds628.3'
 
-                    dir_glade = dir_rda+rda_cat+'/'
-                    files_glade  = np.array([dir_rda+rda_cat+"/anl_p25/anl_p25.%03d%02d.nc"%(y,m) for y in range(yr0,yr1+1) for m in range(1,12)])
+                dir_glade = dir_rda+rda_cat+'/'
+                files_glade  = np.array([dir_rda+rda_cat+"/anl_p25/%03d/anl_p25.%03d0.nc"%(y,var_fname,y,y) for y in range(yr0,yr1+1) for m in range(1,12)])
+                print(files_glade)
 
-            else : # ifthen for file_type
+            if case_name=='JRA25' : #### Old but nc monthly data available from RDA (1979-2005)
+                resn = '1.9x2.5'
+#            var_anal_fmap = {'T': '',   'Q':'q'}
+                var_anal_vmap = {'T': 'TMP_PRS',   'Q':'Q', 'OMEGA':'W'}
+
+
+                var_vname = var_anal_vmap[var_cam] 
+                rda_cat = 'ds625.1'
+
+                dir_glade = dir_rda+rda_cat+'/'
+                files_glade  = np.array([dir_rda+rda_cat+"/anl_p25/anl_p25.%03d%02d.nc"%(y,m) for y in range(yr0,yr1+1) for m in range(1,12)])
+
+
  
 
 
-#### Just GRAB the single files for climo, nino and nina.
-             
-                var_anal_map  = {'T': 't',   'Q':'q' , 'Z3': 'hgt',   'U':'u', 'V':'v'}
-                var_vname = var_anal_map[var_cam]
-    
-                case_glade0 = dir_mydata+case_name+'/'+case_name+'_'
-             
-                files_glade = case_glade0+np.char.array(['climo_DJF.nc','nino_DJF.nc','nino_DJF.nc'])
 
-                # Read files onto same dataset, but don't decdode times.
-                decode_times = False
                 
         
 #### GRAB CAM SST AMIP DATASET FOR NOW FOR ANALYSES
@@ -738,11 +728,102 @@ def get_files_type(case_name,case_type,var_cam,years) :
             
 ## POINT TO FILES ##
 
+    data_files = xr.open_mfdataset(files_glade, decode_cf=True, decode_times = True) # 3 mins ERA5: 1979-1990
+    print(data_files)
+
+    if lcoord_names : data_files = data_files.rename({'latitude':'lat', 'longitude':'lon', 'level':'lev'})
+    
+# Reverse lat array to get S->N if needed
+    if lat_rev : data_files = data_files.reindex(lat=list(reversed(data_files.lat)))
+
+
+# Datset info.
+  
+    print('    -- FILE(S) AVAILABLE TIME RANGE - > ',min(data_files.time.dt.year.values),' to' ,max(data_files.time.dt.year.values))
+    print('')
+    print('Dataset required memory =',data_files.nbytes)        
+    
+    return data_files,var_vname
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'''
+#########################################################
+    GRAB CLIMOS OF TIME MEAN NINO AND NINA
+#########################################################
+'''
+
+
+
+def get_files_climo(case_name,case_type,var_cam,years) :
+
+
+#### Just GRAB the single files for climo, nino and nina.
+           
+    print('    -- File time type is climatological --')
+    
+    # FILES on my work dir.
+    dir_mydata = '/glade/work/rneale/data/'
+    
+    var_anal_map  = {'T': 't',   'Q':'q' , 'Z3': 'hgt',   'U':'u', 'V':'v'}
+    var_vname = var_anal_map[var_cam]
+
+    case_glade0 = dir_mydata+case_name+'/'+case_name+'_'
+
+    files_glade = case_glade0+np.char.array(['climo_DJF.nc','nino_DJF.nc','nino_DJF.nc'])
+
+    # Read files onto same dataset, but don't decdode times.
+    print(files_glade)
+    data_files = xr.open_mfdataset(files_glade, decode_cf=True, decode_times = False,concat_dim='time', combine='nested') # 3 mins ERA5: 1979-1990
+    
+    print(data_files) 
+    
+    
+    return data_files,var_vname
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+''' ##### TRASH CODE THAT MAY NOT NEED TO BE KEPT ####### '''
+
+
+
 #    data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 100,"latitude": 10, "longitude": 10}) ; HANGS!!    
 #    data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 100})  ; 2.52mins (ERA5: 1979-1990)
 #     data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 12}) ; 3.15 
-    data_files = xr.open_mfdataset(files_glade, decode_cf=True, parallel=True,decode_times = decode_times,concat_dim='time', combine='nested') # 3 mins ERA5: 1979-1990
-    print(data_files)
+
 #    data_files.time.attrs['calendar'] = 'noleap'
 #    print(data_files.time)
 #    data_files.time.decode_cf
@@ -760,24 +841,3 @@ def get_files_type(case_name,case_type,var_cam,years) :
 ## STANDARDIZE COORDS/DIMS ##
 #    time_dtime = pd.to_datetime(time_str,'%Y%j') 
 #    print(time_dtime)
-    if lcoord_names : data_files = data_files.rename({'latitude':'lat', 'longitude':'lon', 'level':'lev'})
-    
-# Reverse lat array to get S->N if needed
-    if lat_rev : data_files = data_files.reindex(lat=list(reversed(data_files.lat)))
-
-
-# Datset info.
-  
-    if file_type == 'tseries' : print('    -- FILE(S) AVAILABLE TIME RANGE - > ',min(data_files.time.dt.year.values),' to' ,max(data_files.time.dt.year.values))
-    print('')
-    print('Dataset required memory =',data_files.nbytes)        
-    
-    return data_files,var_vname
-
-
-
-
-
-
-
-
