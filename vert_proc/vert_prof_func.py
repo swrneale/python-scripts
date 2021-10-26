@@ -7,7 +7,7 @@ import numpy as np
 import xarray as xr
 import datetime as dt
 import pandas as pd
-import pygrib as pyg # Read in grib for analyses (ECMWF)
+#import pygrib as pyg # Read in grib for analyses (ECMWF)
 
 #import monthdelta 
 from dateutil.relativedelta import relativedelta
@@ -95,7 +95,8 @@ def nino_sst_anom(run_case,sst_data,nino):
     year_all = sst_ts.time.dt.strftime("%Y") 
     time_axis = np.arange(0,year_all.size)
     
-    if mnames_all[0] != 'Jan;':
+   
+    if mnames_all[0] != 'Jan':
         print('First month is ',mnames_all[0],' not Jan: Exiting - should check it is not the h0 time stamp problem if CAM data')
        
     
@@ -339,7 +340,7 @@ def nino_sst_anom(run_case,sst_data,nino):
 #    ax.tick_params(which='minor', length=7)
     
     
-    fig.savefig('test_'+nino+'_.png', dpi=100)
+    fig.savefig(run_case+'_'+nino+'_ssta.png', dpi=100)
     
     return inino_mons[0],inina_mons[0]
 
@@ -487,7 +488,7 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
             dir_mydata = '/glade/work/rneale/data/'
             
             # Select correct root directory.
-            lfiles_rda = True if case_name in ['ERA5','ERAI'] else False
+            lfiles_rda = True if case_name in ['ERA5','ERAI','CFSR','ERAI','MERRA2','JRA25'] else False
             
             
          
@@ -572,7 +573,7 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
             if case_name=='JRA55' : #### NOT CLEAR MMEAN DATA AVAILABLE FROM RDA
                 resn = '1.9x2.5'
 #            var_anal_fmap = {'T': '',   'Q':'q'}
-                var_anal_vmap = {'T': 'T',   'Q':'Q'}
+                var_anal_vmap = {'T': 'T', 'Q':'Q'}
                 var_vname = var_anal_vmap[var_cam] 
                 rda_cat = 'ds628.3'
 
@@ -611,8 +612,21 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
    
     ''' MODEL OUTPUT '''
 
+#### Common CAM->CF variable mapping
 
-    if case_type =='lens1':
+    vars_cf = {'TS' : 'ts', 'T': 'ta',   'Q':'hus' , 'Z3': 'hgt',   'U':'ua', 'V':'va',  'OMEGA':'wap'}
+   
+    
+   
+
+
+
+
+
+
+
+
+    if case_type =='lens1': ## LARGE ENSEMBLE WITH CESM1 ##
  
         dir_lens = '/glade/collections/cdg/data/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/'
  
@@ -626,11 +640,13 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
 
         
         
-        
+   
         
         
     
-    if case_type =='lens2': # Complex ensembles structures. Multiple files need to be trimmed forom directory listing.
+    if case_type =='lens2':   ## LARGE ENSEMBLE WITH CESM2 ##
+        
+# Complex ensembles structures. Multiple files need to be trimmed forom directory listing.
         
  
         dir_lens = '/glade/campaign/cgd/cesm/CESM2-LE/timeseries/atm/proc/tseries/month_1/'
@@ -656,11 +672,31 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
      
                                
         var_vname = var_cam
+  
+
+
+
+
+
+
+
+        
+    if case_type =='c6_amip':     ## ENSEMBLE OF AMIP CAM6 RUNS FROM CMIP6 ##
+       
+        dir_lens = '/glade/collections/cdg/data/CMIP6/CMIP/NCAR/CESM2/amip/'
+        var_cf = vars_cf[var_cam]
+
+        print('    -- Grabbing file(s) for CAM5-AMIP - Variable = ',var_cam)
+
+        dir_files_stub = dir_lens+case_name+'/Amon/'+var_cf+'/gn/latest/' 
         
         
+        files_glade = np.array(os.listdir(dir_files_stub))  # List all files in variable directory
+#        files_glade = sp.getoutput('ls '+dir_files_stub+'*nc')
+        files_glade = np.array([dir_files_stub+file_string for file_string in files_glade])
+        var_vname = var_cf   
         
-        
-        
+        lcoord_names = True
         
         
         
@@ -716,22 +752,26 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
     print('    -- PROCESSING FILE(S) ->>')
 
 
-    if len(files_glade) > 1 :
+    
+    if isinstance(files_glade,list) :
         print('    --> First/Last (',len(files_glade),' total number of files)')
-        print(files_glade[0])
+        print('    --> ',files_glade[0])
         print(files_glade[-1])
     else:
         print('    --> Single file')
-        print(files_glade)
+        print('    --> ',files_glade)
 
    
             
 ## POINT TO FILES ##
 
-    data_files = xr.open_mfdataset(files_glade, decode_cf=True, decode_times = True) # 3 mins ERA5: 1979-1990
-    print(data_files)
+  
+    data_files = xr.open_mfdataset(files_glade, decode_cf=True, decode_times = True, parallel=True) # 3 mins ERA5: 1979-1990
+   
 
-    if lcoord_names : data_files = data_files.rename({'latitude':'lat', 'longitude':'lon', 'level':'lev'})
+    if lcoord_names : data_files = change_coords(data_files,var_cam,case_type,case_name)
+
+#    if lcoord_names : data_files = data_files.rename({'latitude':'lat', 'longitude':'lon', 'level':'lev'})
     
 # Reverse lat array to get S->N if needed
     if lat_rev : data_files = data_files.reindex(lat=list(reversed(data_files.lat)))
@@ -748,6 +788,33 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
 
 
 
+''' 
+#########################################################
+    CHANGE COORD NAMES IF NEEDED 
+#########################################################
+
+-Read in data files and change coord names if needed
+
+
+'''
+
+def change_coords(data_files_in,var_cam_in,case_type_in,case_name_in) :
+    
+    data_files_out = data_files_in
+    
+      
+    if var_cam_in != 'TS' :
+        if case_name_in in ['ERA5'] :
+            data_files_out = data_files_in.rename({'latitude':'lat', 'longitude':'lon', 'level':'lev'})
+    
+        if case_type_in in ['c6_amip'] :
+            data_files_out = data_files_in.rename({'plev':'lev'})
+            data_files_out['lev'] = 0.01*data_files_out.lev  # pa->mb
+            
+
+                
+# Return modified files with new coord. names.
+    return data_files_out
 
 
 
@@ -776,23 +843,25 @@ def get_files_climo(case_name,case_type,var_cam,years) :
 
 #### Just GRAB the single files for climo, nino and nina.
            
-    print('    -- File time type is climatological --')
+    print('-- File time type is climatological --')
     
     # FILES on my work dir.
     dir_mydata = '/glade/work/rneale/data/'
     
-    var_anal_map  = {'T': 't',   'Q':'q' , 'Z3': 'hgt',   'U':'u', 'V':'v'}
+    var_anal_map  = {'T': 'ta',   'Q':'hus' , 'Z3': 'hgt',   'U':'ua', 'V':'va',  'OMEGA':'omega'}
     var_vname = var_anal_map[var_cam]
 
     case_glade0 = dir_mydata+case_name+'/'+case_name+'_'
 
-    files_glade = case_glade0+np.char.array(['climo_DJF.nc','nino_DJF.nc','nino_DJF.nc'])
+    # Grab named climo/nino/nina files
+    files_glade = case_glade0+np.char.array(['climo_DJF.nc','nino_DJF.nc','nina_DJF.nc'])
 
     # Read files onto same dataset, but don't decdode times.
+    print('    -- CLIMO FILE SET')
     print(files_glade)
     data_files = xr.open_mfdataset(files_glade, decode_cf=True, decode_times = False,concat_dim='time', combine='nested') # 3 mins ERA5: 1979-1990
     
-    print(data_files) 
+   
     
     
     return data_files,var_vname

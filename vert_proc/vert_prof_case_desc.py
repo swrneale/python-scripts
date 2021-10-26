@@ -14,7 +14,8 @@ def mdtf_case_list():
     rl['ERA5']   =  ['ERA5']
     rl['ERAI']   =  ['ERAI']
     rl['JRA25']   =  ['JRA25']
-    
+    rl['CFSR']   =  ['CFSR']
+    rl['MERRA2']   =  ['MERRA2']
 
 
 
@@ -58,9 +59,11 @@ def mdtf_case_list():
     rl['rice']  =   ['f.e20.FHIST.f09_f09.cesm2_1_ice-micro.001']
     rl['rpfrac']  =   ['f.e20.FHIST.f09_f09.cesm2_1_precip_frac_method.001']
     rl['rpremit']  =   ['f.e20.FHIST.f09_f09.cesm2_1_cld_premit.001']
+    rl['rnohertz']  = ['f.e20.FHIST.f09_f09.cesm2_1_hetfrz-off.001']
     rl['rC5psalt']  =   ['f.e20.FHIST.f09_f09.cesm2_1_revertc5seasalt.001']
     rl['rC5pdust']  =   ['f.e20.FHIST.f09_f09.cesm2_1_revertc5dust.001']
     rl['rL30']  =   ['f.e20.FHIST.f09_f09.cesm2_1_L30.001']
+    rl['rclm4'] = ['f.e20.FHIST.f09_f09.cesm2_1_clm4.001']
     
 # SST configs    
     rl['CE2sst']  =   ['f.e20.FHIST.f09_f09.cesm2_1_coupled-sst-amip.001']
@@ -84,9 +87,9 @@ def mdtf_case_list():
 
   
      
-#########################################
-# LENS1 
-#########################################
+    #########################################
+    # LENS1 
+    #########################################
     
     
     e0=1 ; en=30   #Start/end ens. members
@@ -95,13 +98,14 @@ def mdtf_case_list():
     enum = ['CE1.E%01d'%(itt) for itt in range(e0,en+1)]
    
     
+    
     for it in range(e0,en+1):
         rl[enum[it-1]] = [erun[it-1]]
         
   
-#########################################
-# LENS2 Experiments   
-#########################################
+    #########################################
+    # LENS2 Experiments   
+    #########################################
     
     
     e0=1 ; en=10   #Start/end ens. members
@@ -118,14 +122,21 @@ def mdtf_case_list():
     
     
  
-#########################################
-# CAM6 Revert Experiments  
-#########################################
+    #########################################
+    # CESM2-AMIP 
+    #########################################
     
-
-
-
-
+        
+    rl['C6.E1'] = ['r1i1p1f1']
+    rl['C6.E2'] = ['r2i1p1f1']
+    rl['C6.E3'] = ['r3i1p1f1']
+    rl['C6.E4'] = ['r4i1p1f1']
+    rl['C6.E5'] = ['r5i1p1f1']
+    rl['C6.E6'] = ['r6i1p1f1']
+    rl['C6.E7'] = ['r7i1p1f1']
+    rl['C6.E8'] = ['r8i1p1f1']
+    rl['C6.E9'] = ['r9i1p1f1']
+    rl['C6.E10'] = ['r10i1p1f1']
     
 # Data frame
     rl_df = pd.DataFrame.from_dict(rl, orient='index',columns=['run name'])
