@@ -2,7 +2,7 @@
 ## PYTHON FUNCTIONS FOR VERTICAL PROCESSES NOTEBOOK ##
 ######################################################
 
-#import numpy as np
+import numpy as np
 import xarray as xr
 import datetime as dt
 #import monthdelta 
