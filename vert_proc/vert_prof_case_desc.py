@@ -45,7 +45,7 @@ def mdtf_case_list():
     rl['rUWold']  =   ['f.e20.FHIST.f09_f09.cesm2_1_uw.001']
     rl['rGW']    =   ['f.e20.FHIST.f09_f09.cesm2_1_iogw.001']
     rl['rZMc']  =   ['f.e20.FHIST.f09_f09.cesm2_1_capeten.001']
-    rl['rMG1']  =   ['f.e20.FHIST.f09_f09.cesm2_1_mg1.001']
+    rl['rMG1']  =   ['f.e20.FHIST.f09_f09.cesm2_1_mg1.002']
     rl['rSB']  =   ['f.e20.FHIST.f09_f09.cesm2_1_sb.002']
     rl['rTMS']  =   ['f.e20.FHIST.f09_f09.cesm2_1_tms.001']
     rl['rCE2i']  =   ['f.e20.FHIST.f09_f09.cesm2_1_revert125.001']

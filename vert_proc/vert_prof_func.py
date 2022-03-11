@@ -37,6 +37,7 @@ import os
 
 
 
+
 #####################################################
 
 
@@ -80,6 +81,7 @@ def nino_sst_anom(run_case,sst_data,nino):
 # Read in TS (SSTs) from inputdata HadISST for now.  
 
     sst_ts = sst_data.loc[:,nino_s:nino_n,nino_w:nino_e].mean(dim=['lat','lon']) 
+    print(sst_ts.resample())
     sst_ts = sst_ts.compute()
    
 #    sst_ts = h0_month_fix(sst_ts)
@@ -93,7 +95,7 @@ def nino_sst_anom(run_case,sst_data,nino):
     
     mnames_all = sst_ts.time.dt.strftime("%b") 
     year_all = sst_ts.time.dt.strftime("%Y") 
-    time_axis = np.arange(0,year_all.size)
+    time_axis = np.arange(0,year_all.size
     
    
     if mnames_all[0] != 'Jan':
@@ -703,12 +705,18 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
 
         
     if case_type =='cam6_revert': # Complex ensembles structures
- 
-        dir_cam = '/glade/p/cgd/amp/amwg/runs/' # Run firectories with history files
     
-        print('    -- Grabbing file(s) for CAM6 revert experiment - Variable = ',var_cam)
-              
-        dir_files = dir_cam+case_name+'/atm/hist/'
+    
+        dir2_cam = '/glade/scratch/rneale/' # Some output is here
+        dir_cam = '/glade/p/cgd/amp/amwg/runs/' # Run firectories with history files              
+        
+        
+        dir_files = dir2_cam+case_name+'/atm/hist/'
+       
+        if not os.path.exists(dir_files) :
+            dir_files = dir_cam+case_name+'/atm/hist/'
+        
+        
         files_stub = case_name+''+'.cam.h0.'
         
         
@@ -751,15 +759,17 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
         
     print('    -- PROCESSING FILE(S) ->>')
 
-
+#    if  not isinstance(files_glade,(str,list)) :   
+#        files_glade = list(files_glade)
+        
     
-    if isinstance(files_glade,list) :
+    if not isinstance(files_glade,(str,list)) :
         print('    --> First/Last (',len(files_glade),' total number of files)')
-        print('    --> ',files_glade[0])
-        print(files_glade[-1])
+        print('    ',files_glade[0])
+        print('.   ',files_glade[-1])
     else:
         print('    --> Single file')
-        print('    --> ',files_glade)
+        print('    ',files_glade)
 
    
             
@@ -767,7 +777,7 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
 
   
     data_files = xr.open_mfdataset(files_glade, decode_cf=True, decode_times = True, parallel=True) # 3 mins ERA5: 1979-1990
-   
+    
 
     if lcoord_names : data_files = change_coords(data_files,var_cam,case_type,case_name)
 

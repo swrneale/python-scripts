@@ -387,7 +387,7 @@ def get_files_type(case_name,case_type,var_cam,years) :
     
                 dir_glade = dir_rda+rda_cat+'/'
                 files_glade  = np.array([dir_rda+rda_cat+"/e5.moda.an.pl/%03d/e5.moda.an.pl.128_130_%s.ll025sc.%03d010100_%03d120100.nc"%(y,var_fname,y,y) for y in range(yr0,yr1+1)])
-                print(files_glade)
+            
                 lat_rev = True
                 lcoord_names = True
             
@@ -399,6 +399,7 @@ def get_files_type(case_name,case_type,var_cam,years) :
     
 #    data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 100})  ; 2.52mins (ERA5: 1979-1990)
 #     data_files = xr.open_mfdataset(files_glade,parallel=True,chunks={"time": 12}) ; 3.15 mins
+    
     data_files = xr.open_mfdataset(files_glade,parallel=True) # 3 mins ERA5: 1979-1990
      
     
