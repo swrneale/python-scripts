@@ -91,7 +91,7 @@ def plot1d_ts_scam(rinfo):
 
     vleg_left = ['PBLH','PBLH_DTH','PBLH_DQ'] # Vars. to put legend on the left not right.
 
-    ## Unbundle ##
+## Unbundle ##
     case_iop = rinfo['Case IOP']
     pvars_ts1d = np.array(rinfo['1dvars'])
     srun_names =  np.array(rinfo['Run Name']) # Has to be numpy so it can get appended
