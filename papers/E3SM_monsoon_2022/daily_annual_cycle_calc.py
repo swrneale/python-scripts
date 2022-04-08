@@ -12,10 +12,12 @@ import dask as dk
 
 import cartopy.crs as ccrs
 from cartopy.mpl.geoaxes import GeoAxes
+import cartopy.mpl.geoaxes
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from cartopy.util import add_cyclic_point
 import cartopy.feature as cf
 from cartopy.io import shapereader
+
 import geopandas
 
 import matplotlib.pyplot as mp
@@ -30,7 +32,7 @@ import glob as gb
 
 
 '''
-    CALCULATE DAILY CLIMATOLOGY FROM DAILY DATA
+    CALCULATE DAILY CLIMATOLOGY FROM DAILY DATA 
 '''
 
 
@@ -59,7 +61,8 @@ def return_common_loc(case_type,case_dir,run_name,var_name,time_freq):
         if case_type == 'TRMM':
             case_loc = case_dir+'/'+run_name+'/TRMM.PRECT.nc'
 
-            
+        if case_type == 'AIR':
+            case_loc = case_dir+'/'+run_name+'/AIR_daily_climatology.dat'
             
             
     return case_loc
@@ -113,7 +116,14 @@ def calc_daily_acycle(cname,set_df,var_df):
     
     print(cname,' - ',nens,' ensemble members')
     
-  
+
+
+
+    '''
+           Loop Ensemble Members
+    '''
+        
+        
     for irun in range(0,nens):
         
         print('')
@@ -126,25 +136,59 @@ def calc_daily_acycle(cname,set_df,var_df):
         print(run_wcard)
         
         run_names = sorted(gb.glob(run_wcard))
-    
+        print(run_names)    
 
-## Dataset    
-        try:
-            dset = xr.open_mfdataset(run_names, chunks={'time': 1})    
-                
-        except:
-            print(run_names+' not found')
+        ##
+        ## Dataset Read: Climo read in  ##
+        ##
+
         
+        if cname =='AIR':
+
+                try: 
+                    dset = np.loadtxt(run_names[0],skiprows = 3)
+                except:
+                    print(run_names+' not found')  
+                
+                print('-Dataset year Range = 19XX to 20XX')
+        
+                var_data = vscale*dset  
+                
+        else :
+                
+                
+        
+
+        ##
+        ## Dataset Read: Climo Needs To Be Constructed ##
+        ##
+        
+             
+        
+                try:
+                    dset = xr.open_mfdataset(run_names, chunks={'time': 1})    
+                
+                except:
+
+                    print(run_names+' not found')
+                
 ## Time period
-        var_data = vscale*dset[var].sel(time=slice(years[0],years[1]))
-      
+                print('-Dataset year Range = ',dset['time'].min,' to ',dset['time'].max)
+        
+                var_data = vscale*dset[var].sel(time=slice(years[0],years[1]))
+        
 ## Regional averge
-        var_data = var_data.sel(lon=slice(lonw,lone),lat=slice(lats,latn)).mean(dim=('lat','lon'))
+                var_data = var_data.sel(lon=slice(lonw,lone),lat=slice(lats,latn)).mean(dim=('lat','lon'))
                                                  
 ## gather all the day of years and average                  
-        var_data = var_data.groupby("time.dayofyear").mean()
-                                
-## Preform a cumulative sum through the average year.
+                var_data = var_data.groupby("time.dayofyear").mean()
+        
+    
+        
+        
+                
+        
+## Perform a cumulative sum through the average year.
         var_data = var_data.cumsum()
         
         
@@ -162,12 +206,24 @@ def calc_daily_acycle(cname,set_df,var_df):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 '''
         PLOT SHADED REGION TO BE MASKED/AVERAGED
 
 '''
 
-def region_mask(ax1,lat_lon,lmask):
+def region_mask(ax_in,lat_lon,lmask):
                 
      # get country borders
         resolution = '10m'
@@ -180,7 +236,7 @@ def region_mask(ax1,lat_lon,lmask):
         
         
         shpfilename = shapereader.natural_earth(resolution, category, name)
-
+#
 # read the shapefile using geopandas
         df = geopandas.read_file(shpfilename)
 
@@ -189,20 +245,22 @@ def region_mask(ax1,lat_lon,lmask):
 
 
 #        figc = mp.figure(figsize=(10, 10))
-#        ax1 = figc.add_subplot(2, 1, 1, projection=ccrs.PlateCarree())
-        ax1.coastlines('50m')
-        ax1.add_geometries(poly, crs=ccrs.PlateCarree(), 
-                  edgecolor='0.5',facecolor='gray')
-        ax1.set_extent([lonw-moffset,lone+moffset, lats-moffset, latn+moffset], ccrs.PlateCarree())
-  
-        axins = inset_axes(ax_in, width="40%", height="40%", loc="upper right", 
-                   axes_class=geoaxes.GeoAxes, 
-                   axes_kwargs=dict(map_projection=ccrs.PlateCarree()))
-        axins.add_feature(cf.COASTLINE)
+#        ax_in = figc.add_subplot(2, 1, 1, projection=ccrs.PlateCarree())
+#       
 
+  
+        axins = inset_axes(ax_in, width="15%", height="30%", loc="lower right", 
+                   axes_class=cartopy.mpl.geoaxes.GeoAxes, 
+                   axes_kwargs=dict(map_projection=ccrs.PlateCarree()))
+        
+        
+        axins.add_feature(cf.COASTLINE)
+        axins.add_geometries(poly, crs=ccrs.PlateCarree(), edgecolor='0.5',facecolor='gray')
+        axins.set_extent([lonw-moffset,lone+moffset, lats-moffset, latn+moffset], ccrs.PlateCarree())
+        axins.coastlines('50m')
 
         
-        return ax1
+        return axins
                 
 
 
