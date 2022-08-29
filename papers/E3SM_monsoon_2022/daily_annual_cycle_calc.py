@@ -170,19 +170,19 @@ def calc_daily_acycle(rname,cname,set_df,var_df):
              
         
                 try:
-                    dset = xr.open_mfdataset(run_names, chunks={'time': 1})    
+                    dset = xr.open_mfdataset(run_names, parallel = True, chunks={'time': 10})    
                 
                 except:
 
                     print(run_names+' not found')
                 
 ## Time period
-                print('-Dataset year Range = ',dset['time'].min,' to ',dset['time'].max)
+                print('-Dataset year Range = ',dset.time.dt.year,' to ',dset['time'][0].dt.year)
         
                 var_data = vscale*dset[var].sel(time=slice(years[0],years[1]))
-        
-                print('HIIIIIIIII')
-                reg_mask = gen_lsmask(rname,var_data.lon,var_data.lat)
+
+		
+#                reg_mask = gen_lsmask(rname,var_data.lon,var_data.lat)
                 print('Mask Generated for ',)
                 
                 

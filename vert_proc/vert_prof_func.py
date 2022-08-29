@@ -5,14 +5,14 @@
 
 import numpy as np
 import xarray as xr
-import datetime as dt
-import pandas as pd
-#import pygrib as pyg # Read in grib for analyses (ECMWF)
+# import datetime as dt
+# import pandas as pd
+# import pygrib as pyg # Read in grib for analyses (ECMWF)
 
-#import monthdelta 
+# import monthdelta 
 from dateutil.relativedelta import relativedelta
 
-## Plotting modules
+# Plotting modules
 
 import cartopy as cart
 import cartopy.crs as ccrs
@@ -81,7 +81,7 @@ def nino_sst_anom(run_case,sst_data,nino):
 # Read in TS (SSTs) from inputdata HadISST for now.  
 
     sst_ts = sst_data.loc[:,nino_s:nino_n,nino_w:nino_e].mean(dim=['lat','lon']) 
-    print(sst_ts.resample())
+#    print(sst_ts.resample())
     sst_ts = sst_ts.compute()
    
 #    sst_ts = h0_month_fix(sst_ts)
@@ -95,9 +95,9 @@ def nino_sst_anom(run_case,sst_data,nino):
     
     mnames_all = sst_ts.time.dt.strftime("%b") 
     year_all = sst_ts.time.dt.strftime("%Y") 
-    time_axis = np.arange(0,year_all.size
+    time_axis = np.arange(0,year_all.size)
     
-   
+
     if mnames_all[0] != 'Jan':
         print('First month is ',mnames_all[0],' not Jan: Exiting - should check it is not the h0 time stamp problem if CAM data')
        
