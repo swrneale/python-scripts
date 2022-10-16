@@ -38,7 +38,7 @@ import time as timing
 
 
 '''
-        Convert Model Variable toObserved Variable
+        Convert Model Variable to Observed Variable
 '''
 
 
@@ -165,7 +165,7 @@ def trop_data_getvar(da_run,var_name,year_range,lat_range,lon_range):
 #	run_var.sel(time="1982-07").plot(figsize=(30,30))
 #	plt.show()
 	run_var = run_var.sel(lat=slice(lats,latn))		
-	run_var = run_var.mean(dim='lat')
+#	run_var = run_var.mean(dim='lat')
 
 # Make sure it is datetime64 so it can be plotted nicely with datetime objects.
 #	run_var = run_var.astype("datetime64[ns]") 
@@ -199,54 +199,26 @@ def trop_data_getvar(da_run,var_name,year_range,lat_range,lon_range):
 
 def trop_data_filt(data_in,ftype):
    
-    import matplotlib.pyplot as plt
-    from scipy.signal import freqz
+	import matplotlib.pyplot as plt
+	from scipy.signal import freqz
 
-    print('-- trop_data_filt --')     
-
-
-
-    # Sample rate and desired cutoff frequencies (in Hz).
-    fs = 1. # samples per day
-    lowcut = 1./100. # Low pass cuttoff (slow - days)
-    highcut = 1./20. # High pass cutoff (fast - days)
+	print('-- trop_data_filt --')     
 
 
-### Plot the frequency response for a few different orders.
 
-#    plt.figure(1)
-#    plt.clf()
-#    for order in [3, 6, 9]:
-#        b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-#        w, h = freqz(b, a, worN=2000)
-#        plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
+# Sample rate and desired cutoff frequencies (in Hz).
+	fs = 1. # samples per day
+	window = 200
+	cutoff_low = 1./100. # Low pass cuttoff (slow - days)
+	cutoff_high = 1./20. # High pass cutoff (fast - days)
 
-#    plt.plot([0, 0.5 * fs], [np.sqrt(0.5), np.sqrt(0.5)],
-#             '--', label='sqrt(0.5)')
-#    plt.xlabel('Frequency (Hz)')
-#    plt.ylabel('Gain')
-#    plt.grid(True)
-#    plt.legend(loc='best')
 
-### Filter a noisy signal.
-#    T = 0.05
-#    nsamples = int(T * fs)
-#    t = np.linspace(0, T, nsamples, endpoint=False)
-#    a = 0.02
-#    f0 = 600.0
-#    x = 0.1 * np.sin(2 * np.pi * 1.2 * np.sqrt(t))
-#    x += 0.01 * np.cos(2 * np.pi * 312 * t + 0.1)
-#    x += a * np.cos(2 * np.pi * f0 * t + .11)
-#    x += 0.03 * np.cos(2 * np.pi * 2000 * t)
-#    plt.figure(2)
-#    plt.clf()
-#    plt.plot(t, x, label='Noisy signal')
 
-# Band pass filter from Scipy functions
+	data_filt = lanczos_band_pass(data_in, window, cutoff_low, cutoff_high, dim='time')
 
-    data_filt = butter_bandpass_filter(data_in, lowcut, highcut, fs, order=6)
 
-    return data_filt
+
+	return data_filt
         
         
    
@@ -348,6 +320,126 @@ def trop_data_plot(axn,run_name,data_var,years_plot):
 
 
         
+
+
+
+
+""" 
+		Low, High and BandPass filtering
+"""
+
+
+
+
+
+
+
+def lanczos_low_pass_weights(window, cutoff):
+    """
+    Calculate weights for a low pass Lanczos filter.
+
+    Inputs:
+    ================
+    window: int
+        The length of the filter window (odd number).
+
+    cutoff: float
+        The cutoff frequency(1/cut off time steps)
+
+    """
+    order = ((window - 1) // 2 ) + 1
+    nwts = 2 * order + 1
+    w = np.zeros([nwts])
+    n = nwts // 2
+    w[n] = 2 * cutoff
+    k = np.arange(1., n)
+    sigma = np.sin(np.pi * k / n) * n / (np.pi * k)
+#     sigma = 1.   # edit for testing to match with Charlotte ncl code
+    firstfactor = np.sin(2. * np.pi * cutoff * k) / (np.pi * k)
+    w[n-1:0:-1] = firstfactor * sigma
+    w[n+1:-1] = firstfactor * sigma
+    return w[1:-1]
+
+def lanczos_low_pass(da_ts, window, cutoff, dim='time', opt='symm'):
+    
+    wgts = lanczos_low_pass_weights(window, cutoff)
+    weight = xr.DataArray(wgts, dims=['window_dim'])
+    
+    if opt == 'symm':
+        # create symmetric front 
+        da_ts = da_ts.transpose('lat','lon','time')
+        da_front = (xr.DataArray(da_ts.loc[
+                                    dict(time=slice("%0.4i-01-01"%da_ts['time.year'][0],
+                                                    "%0.4i-12-31"%da_ts['time.year'][0]))].values,
+                                dims=['lat','lon','time'],
+                                coords=dict(lat=da_ts.lat.values,
+                                            lon=da_ts.lon.values,
+                                            time=da_ts.loc[
+                                                dict(time=slice("%0.4i-01-01"%da_ts['time.year'][0],
+                                                                "%0.4i-12-31"%da_ts['time.year'][0]))].time.values
+                                                                -dt.timedelta(days=365)))
+                   )
+        da_front = da_front.reindex(time=list(reversed(da_front.time.values)))
+        
+        # create symmetric end
+        da_end = (xr.DataArray(da_ts.loc[
+                                  dict(time=slice("%0.4i-01-01"%da_ts['time.year'][-1],
+                                                  "%0.4i-12-31"%da_ts['time.year'][-1]))].values,
+                                dims=['lat','lon','time'],
+                                coords=dict(lat=da_ts.lat.values,lon=da_ts.lon.values,
+                                            time=da_ts.loc[
+                                                dict(time=slice("%0.4i-01-01"%da_ts['time.year'][-1],
+                                                                "%0.4i-12-31"%da_ts['time.year'][-1]))].time.values
+                                                                +dt.timedelta(days=365)))
+                 )
+        da_end = da_end.reindex(time=list(reversed(da_end.time.values)))
+        
+        da_symm = xr.concat([da_front,da_ts,da_end],dim='time')
+        da_symm_filtered = da_symm.rolling({dim:window}, center=True).construct('window_dim').dot(weight)
+        da_ts_filtered = da_symm_filtered.sel(time=da_ts.time)
+        
+    else:
+        da_ts_filtered = da_ts.rolling({dim:window}, center=True).construct('window_dim').dot(weight)
+    
+    return da_ts_filtered
+    
+def lanczos_high_pass(da_ts, window, cutoff, dim='time'):
+    
+    da_ts_lowpass = lanczos_low_pass(da_ts, window, cutoff, dim='time')
+    da_ts_filtered = da_ts-da_ts_lowpass
+    
+    return da_ts_filtered    
+
+def lanczos_band_pass(da_ts, window, cutoff_low, cutoff_high, dim='time'):
+    
+    da_ts_filtered = lanczos_low_pass(da_ts, window, cutoff_high, dim='time')
+    da_ts_filtered = lanczos_high_pass(da_ts_filtered, window, cutoff_low, dim='time')
+    
+    return da_ts_filtered
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         
 ''' SCIPY: Generate Butter Bandpass filter '''
 
@@ -459,101 +551,3 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order):
 
 
 
-
-
-
-
-""" 
-		Low, High and BandPass filtering
-"""
-
-
-
-
-
-
-
-
-
-def lanczos_low_pass_weights(window, cutoff):
-    """
-    Calculate weights for a low pass Lanczos filter.
-
-    Inputs:
-    ================
-    window: int
-        The length of the filter window (odd number).
-
-    cutoff: float
-        The cutoff frequency(1/cut off time steps)
-
-    """
-    order = ((window - 1) // 2 ) + 1
-    nwts = 2 * order + 1
-    w = np.zeros([nwts])
-    n = nwts // 2
-    w[n] = 2 * cutoff
-    k = np.arange(1., n)
-    sigma = np.sin(np.pi * k / n) * n / (np.pi * k)
-#     sigma = 1.   # edit for testing to match with Charlotte ncl code
-    firstfactor = np.sin(2. * np.pi * cutoff * k) / (np.pi * k)
-    w[n-1:0:-1] = firstfactor * sigma
-    w[n+1:-1] = firstfactor * sigma
-    return w[1:-1]
-
-def lanczos_low_pass(da_ts, window, cutoff, dim='time', opt='symm'):
-    
-    wgts = lanczos_low_pass_weights(window, cutoff)
-    weight = xr.DataArray(wgts, dims=['window_dim'])
-    
-    if opt == 'symm':
-        # create symmetric front 
-        da_ts = da_ts.transpose('lat','lon','time')
-        da_front = (xr.DataArray(da_ts.loc[
-                                    dict(time=slice("%0.4i-01-01"%da_ts['time.year'][0],
-                                                    "%0.4i-12-31"%da_ts['time.year'][0]))].values,
-                                dims=['lat','lon','time'],
-                                coords=dict(lat=da_ts.lat.values,
-                                            lon=da_ts.lon.values,
-                                            time=da_ts.loc[
-                                                dict(time=slice("%0.4i-01-01"%da_ts['time.year'][0],
-                                                                "%0.4i-12-31"%da_ts['time.year'][0]))].time.values
-                                                                -datetime.timedelta(days=365)))
-                   )
-        da_front = da_front.reindex(time=list(reversed(da_front.time.values)))
-        
-        # create symmetric end
-        da_end = (xr.DataArray(da_ts.loc[
-                                  dict(time=slice("%0.4i-01-01"%da_ts['time.year'][-1],
-                                                  "%0.4i-12-31"%da_ts['time.year'][-1]))].values,
-                                dims=['lat','lon','time'],
-                                coords=dict(lat=da_ts.lat.values,lon=da_ts.lon.values,
-                                            time=da_ts.loc[
-                                                dict(time=slice("%0.4i-01-01"%da_ts['time.year'][-1],
-                                                                "%0.4i-12-31"%da_ts['time.year'][-1]))].time.values
-                                                                +datetime.timedelta(days=365)))
-                 )
-        da_end = da_end.reindex(time=list(reversed(da_end.time.values)))
-        
-        da_symm = xr.concat([da_front,da_ts,da_end],dim='time')
-        da_symm_filtered = da_symm.rolling({dim:window}, center=True).construct('window_dim').dot(weight)
-        da_ts_filtered = da_symm_filtered.sel(time=da_ts.time)
-        
-    else:
-        da_ts_filtered = da_ts.rolling({dim:window}, center=True).construct('window_dim').dot(weight)
-    
-    return da_ts_filtered
-    
-def lanczos_high_pass(da_ts, window, cutoff, dim='time'):
-    
-    da_ts_lowpass = lanczos_low_pass(da_ts, window, cutoff, dim='time')
-    da_ts_filtered = da_ts-da_ts_lowpass
-    
-    return da_ts_filtered    
-
-def lanczos_band_pass(da_ts, window, cutoff_low, cutoff_high, dim='time'):
-    
-    da_ts_filtered = lanczos_low_pass(da_ts, window, cutoff_high, dim='time')
-    da_ts_filtered = lanczos_high_pass(da_ts_filtered, window, cutoff_low, dim='time')
-    
-    return da_ts_filtered
