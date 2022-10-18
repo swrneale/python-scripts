@@ -18,6 +18,7 @@ from cartopy.util import add_cyclic_point
 import cartopy.feature as cf
 from cartopy.io import shapereader
 
+import regionmask as rmask
 import geopandas
 
 import matplotlib.pyplot as mp
@@ -84,7 +85,7 @@ def return_common_loc(case_type,case_dir,run_name,var_name,time_freq):
 
 
 
-def calc_daily_acycle(cname,set_df,var_df):
+def calc_daily_acycle(rname,cname,set_df,var_df):
 
 ## Variable and Ensembles information.
         
@@ -151,8 +152,11 @@ def calc_daily_acycle(cname,set_df,var_df):
                     print(run_names+' not found')  
                 
                 print('-Dataset year Range = 19XX to 20XX')
-        
+                
                 var_data = vscale*dset  
+                # Set to xarray equivalent to other datasets
+                var_data = xr.DataArray(var_data,dims="time")
+
                 
         else :
                 
@@ -160,24 +164,32 @@ def calc_daily_acycle(cname,set_df,var_df):
         
 
         ##
-        ## Dataset Read: Climo Needs To Be Constructed ##
+        ## Dataset Read: Climo. Needs To Be Constructed ##
         ##
         
              
         
                 try:
-                    dset = xr.open_mfdataset(run_names, chunks={'time': 1})    
+                    dset = xr.open_mfdataset(run_names, parallel = True, chunks={'time': 10})    
                 
                 except:
 
                     print(run_names+' not found')
                 
 ## Time period
-                print('-Dataset year Range = ',dset['time'].min,' to ',dset['time'].max)
+                print('-Dataset year Range = ',dset.time.dt.year,' to ',dset['time'][0].dt.year)
         
                 var_data = vscale*dset[var].sel(time=slice(years[0],years[1]))
+
+		
+#                reg_mask = gen_lsmask(rname,var_data.lon,var_data.lat)
+                print('Mask Generated for ',)
+                
+                
+         
         
-## Regional averge
+        
+## Regional land mask averge
                 var_data = var_data.sel(lon=slice(lonw,lone),lat=slice(lats,latn)).mean(dim=('lat','lon'))
                                                  
 ## gather all the day of years and average                  
@@ -241,9 +253,10 @@ def region_mask(ax_in,lat_lon,lmask):
         df = geopandas.read_file(shpfilename)
 
 # read the german borders
+#        print(df)
+#        print()
         poly = df.loc[df['ADMIN'] == 'India']['geometry'].values[0]
-
-
+#        print(poly)
 #        figc = mp.figure(figsize=(10, 10))
 #        ax_in = figc.add_subplot(2, 1, 1, projection=ccrs.PlateCarree())
 #       
@@ -260,7 +273,58 @@ def region_mask(ax_in,lat_lon,lmask):
         axins.coastlines('50m')
 
         
+        
         return axins
                 
+'''
+       Land mask for particular countries
+
+'''
+
+def gen_lsmask(reg_name,lon,lat):
+
+#        lon = np.arange(-180, 180,1)
+#        lat = np.arange(-90, 90,1)
+
+#regionmask.defined_regions.natural_earth.countries_110.mask3d(lon,lat).plot()
+
+#rrs = regionmask.defined_regions.natural_earth.countries_50
+#rrs = regionmask.defined_regions
+#dir(rrs)
+
+#        rr = rmask.defined_regions.natural_earth.countries_110.mask(lon,lat)
+        rr = rmask.defined_regions.natural_earth.countries_110[98].coords
+        print(rr)
+#dir(regionmask.defined_regions.natural_earth)
+
+        if reg_name == 'India':
+
+                rr = rr.where((rr.lat < 36) & (rr.lat > 8) & (rr.lon > 68) & (rr.lon < 98))
+                print(rr)
+# Hive off chunks
+                rr.loc[30:35,81:100] = np.nan
+                rr.loc[25:35,70] = np.nan
+                rr.loc[18:27,97] = np.nan
+                rr.loc[28,83:92] = np.nan
+                rr.loc[28:35,70:72] = np.nan
+
+                rr.sel(lat=slice(5.,37.),lon=slice(65.,100.)).plot(cmap='rainbow')
+                
+        return (lsmask)
+
+#mask = regionmask.defined_regions.srex.map_keys.mask(lon,lat)
+#rr = regionmask.defined_regions.srex.map_keys
+
+      
+#print(rr)
+#rt = rr.mask(lon,lat)
+#dir(rr)
+#print(rr)
+#rr.plot(add_label=False)
+#rr = regionmask.defined_regions.natural_earth.countries_50.plot()
+#dir(rr)
 
 
+#rr.plot(add_label=False)
+#land = regionmask.defined_regions.natural_earth_v5_0_0.land_110
+#dir(regionmask.defined_regions(add_label=False))

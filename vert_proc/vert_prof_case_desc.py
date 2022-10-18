@@ -140,7 +140,7 @@ def mdtf_case_list():
     
 # Data frame
     rl_df = pd.DataFrame.from_dict(rl, orient='index',columns=['run name'])
-    display(rl_df)
+#    display(rl_df)
     
     
     return rl_df

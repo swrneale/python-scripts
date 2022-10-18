@@ -5,14 +5,14 @@
 
 import numpy as np
 import xarray as xr
-import datetime as dt
-import pandas as pd
-#import pygrib as pyg # Read in grib for analyses (ECMWF)
+# import datetime as dt
+# import pandas as pd
+# import pygrib as pyg # Read in grib for analyses (ECMWF)
 
-#import monthdelta 
+# import monthdelta 
 from dateutil.relativedelta import relativedelta
 
-## Plotting modules
+# Plotting modules
 
 import cartopy as cart
 import cartopy.crs as ccrs
@@ -81,7 +81,7 @@ def nino_sst_anom(run_case,sst_data,nino):
 # Read in TS (SSTs) from inputdata HadISST for now.  
 
     sst_ts = sst_data.loc[:,nino_s:nino_n,nino_w:nino_e].mean(dim=['lat','lon']) 
-    print(sst_ts.resample())
+#    print(sst_ts.resample())
     sst_ts = sst_ts.compute()
    
 #    sst_ts = h0_month_fix(sst_ts)
@@ -95,9 +95,9 @@ def nino_sst_anom(run_case,sst_data,nino):
     
     mnames_all = sst_ts.time.dt.strftime("%b") 
     year_all = sst_ts.time.dt.strftime("%Y") 
-    time_axis = np.arange(0,year_all.size
+    time_axis = np.arange(0,year_all.size)
     
-   
+
     if mnames_all[0] != 'Jan':
         print('First month is ',mnames_all[0],' not Jan: Exiting - should check it is not the h0 time stamp problem if CAM data')
        
@@ -886,6 +886,183 @@ def get_files_climo(case_name,case_type,var_cam,years) :
 
 
 
+'''
+#########################################################
+  PLOTTING ROUTINES
+#########################################################
+'''
+
+
+
+
+
+
+'''
+#########################################################
+    PLOT DIV AND OMEGA MAX/MIN LEVELS
+#########################################################
+'''
+
+
+def plot_div_pres(case_type,case,var_plt,var_in_all):
+	
+	'''
+    Input Data Info
+'''
+
+	
+
+	lats = -10. ; latn = 20.
+	lonw = 90. ; lone = 300.
+
+
+	plevel = '500'
+	season = 'DJF'
+
+	mvar_grab = 'OMEGA' ; ovar_grab = 'OMEGA'
+
+	ncases = len(cases)
+
+	nrows = 3
+	ncols = 1
+
+# Figure Resources
+
+	cc_pc = ccrs.PlateCarree(central_longitude=180)
+	tcc_pc = ccrs.PlateCarree()
+
+
+
+	fig,axs =  plt.subplots(nrows=nrows,ncols=ncols,
+                        subplot_kw={'projection': cc_pc},
+                        figsize=(38,20))
+
+
+	fig.patch.set_facecolor('white') 
+
+
+
+
+## Code ##
+
+
+	axs=axs.flatten()
+
+# Loop climo,lat,lon
+
+	for i,model in enumerate(cases):
+
+		print(case)
+    
+   
+
+		''' Grab Dataset '''
+
+		if var_plot=='OMEGA':
+		
+			clevs = np.arange( -0.06,0.06,0.01)
+			vscale = 1.
+    
+		if var_plot=='div':
+			da_in = da_in.differentiate("lev")
+    
+		if var_plot=='max_div_level':
+        
+			clevs = [1000, 975, 950, 925, 900, 850,  800, 750, 700, 
+			600, 500, 450, 400,300, 250, 225,200, 175, 150, 125, 100,50]
+     
+        
+        ## Deriving pressure level omega in CAM
+      
+		if case_type != 'reanal':                      
+            
+			da_in_ps = ds_in['PS'] # 2D file
+
+                # Extract the data needed
+            
+			hyam = ds_in.hyam  # hybrid A coefficient
+			hybm = ds_in.hybm  # hybrid B coefficient
+			p0 = 100000  # surface reference pressure in Pascals
+
+            # Specify output pressure levels
+			new_levels = np.array(clevs)
+			new_levels = new_levels * 100  # convert to Pascals
+
+# Interpolate pressure coordinates form hybrid sigma coord
+			da_in = interp_hybrid_to_pressure(da_in,
+                                  da_in_ps,
+                                  hyam,
+                                  hybm,
+                                  p0=p0,
+                                  new_levels=new_levels,
+                                  method='log')
+				# Swap variable nam
+			da_in = da_in.rename({'plev': 'lev'})
+            
+				# Rescale to mb
+			da_in = da_in.assign_coords(lev=0.01*da_in.lev)
+           
+			# Find divergence and plot
+       
+		da_in = -da_in.differentiate("lev")
+        
+
+      
+        
+		da_in = da_in.idxmax(dim='lev')
+        
+    
+        
+
+        # Specific Plotting parmas.
+     
+        
+		clevsp = [1008,992,962,938,912,875,825,775,725,650,550,475,425,350,275,232.5,212.5,187,162,132.5,112.5,75,25]
+        
+		clevsr = clevs
+		clevsr.reverse()
+        
+
+		ccols =  ['lightgray','darkgray','gray','tan','khaki','yellow','gold','darkorange','lightsalmon','red','greenyellow',
+                  'green','darkgreen','lightseagreen','cyan','deepskyblue','blue','navy','purple','slateblue','violet','pink']
+		cols.reverse()
+		cmap = colors.ListedColormap(ccols)
+        
+
+		axs[i].coastlines(color='black',linewidth=3)
+		axs[i].set_extent([lonw, lone, lats,latn], crs=ccrs.PlateCarree())
+   
+#    da_in.values = np.ma.masked_where(da_in.values > 250., da_in)
+
+    im = da_in.plot.pcolormesh(ax=axs[i], transform=tcc_pc,levels=clevsp,cmap=cmap,rasterized=True,add_colorbar=False)
+    axs[i].set_title(case+' - '+ave_period, fontsize=25)
+    axs[i].hlines(0., -180, 180., color='black',lw=1,linestyle='--')
+    axs[i].scatter(vprof_lon, vprof_lat, marker='o', transform=tcc_pc, facecolors='none', edgecolors="white",s=300,linewidth=3,zorder=2)
+    
+    
+
+
+	mp.subplots_adjust(bottom=0.25)
+
+	clevst = [25.+ cc for cc in clevsr]
+
+	cbar_ax = fig.add_axes([0.5, 0.34, 0.01, 0.46])
+
+	cbar_ax.set_title('Max Div. \n Pressure (mb)',fontsize=20)
+	mp.colorbar(im, cax=cbar_ax, orientation="vertical",ticks=clevsr)
+	cbar_ax.set_yticklabels(clevsr,fontsize=20)
+	cbar_ax.invert_yaxis()
+
+	mp.savefig(case+'_'+ave_period+'_'+season+'.png',dpi=120)
+
+	plt.show()
+
+	
+	
+
+
+	
+
 
 
 
@@ -920,3 +1097,9 @@ def get_files_climo(case_name,case_type,var_cam,years) :
 ## STANDARDIZE COORDS/DIMS ##
 #    time_dtime = pd.to_datetime(time_str,'%Y%j') 
 #    print(time_dtime)
+
+
+
+
+
+
