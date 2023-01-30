@@ -46,8 +46,8 @@ def main():
 	'''
 
 
-	run_info['run_set'] = 'lens1' ;  nens_max = 40 ; rname_strong = [10, 21, 11,16,20] ; rname_weak = [7,4,22,29,35]
-	#run_info['run_set'] = 'lens1' ;  nens_max = 40 ; rname_strong = [10, 21, 11] ; rname_weak = [7,4,22]
+#	run_info['run_set'] = 'lens1' ;  nens_max = 40 ; rname_strong = [10, 21, 11,16,20] ; rname_weak = [7,4,22,29,35]
+	run_info['run_set'] = 'lens1' ;  nens_max = 40 ; rname_strong = [10, 21, 11] ; rname_weak = [7,4,22]
 
 	# Dir if on CGD/thorodin
 
@@ -61,9 +61,9 @@ def main():
 
 
 	## PD ##
-	run_info['run_pref'] = 'b.e11.B20TRC5CNBDRD.f09_g16' ; rtype='historical'
-	run_info['run_suff'] = '192001-200512' # File suffix
-	run_info['run_yrs'] =  (1979,2005) #First/last years to grab
+#	run_info['run_pref'] = 'b.e11.B20TRC5CNBDRD.f09_g16' ; rtype='historical'
+#	run_info['run_suff'] = '192001-200512' # File suffix
+#	run_info['run_yrs'] =  (1979,2005) #First/last years to grab
 
 
 
@@ -83,14 +83,14 @@ def main():
 
 	#run_info['run_set'] = 'lens2' ; nens_max = 40 ; rname_strong = [38,11,22] ; rname_weak = [17,13,30]
 
-	#run_info['run_set'] = 'lens2' ; nens_max = 40 ; rname_strong = [11,22,24, 38,37,10] ; rname_weak = [17,13,19,30,26,32]
+	run_info['run_set'] = 'lens2' ; nens_max = 40 ; rname_strong = [11,22,24, 38,37,10] ; rname_weak = [17,13,19,30,26,32]
 
 	#run_info['run_set'] = 'lens2' ; nens_max = 40 ; rname_strong = [38] ; rname_weak = [30]
 
 	## PD ##
-	#run_info['run_pref'] = 'b.e21.BHISTcmip6.f09_g17.LE2' ; rtype='historical'
-	#run_info['run_suff'] = '192001-200512' # File suffixlens
-	#run_info['run_yrs'] =  (1979,2005) #First/last years to grab
+	run_info['run_pref'] = 'b.e21.BHISTcmip6.f09_g17.LE2' ; rtype='historical'
+	run_info['run_suff'] = '192001-200512' # File suffixlens
+	run_info['run_yrs'] =  (1979,2005) #First/last years to grab
 
 
 
@@ -169,9 +169,9 @@ def main():
 
 
 	# Regions (lats/latn/lonw/lone)
-	#run_info['run_reg'] = np.array([-15,15.,50.,95.]) ; ave_dim= 'lon'; pname = 'lon_ave' # Lat/on  ranges 
+	run_info['run_reg'] = np.array([-15,15.,50.,95.]) ; ave_dim= 'lon'; pname = 'lon_ave' # Lat/on  ranges 
 	#run_info['run_reg'] = np.array([-15,15.,150.,200.]) ; ave_dim= 'lon'; pname = 'lon_ave' # Lat/on  ranges 
-	run_info['run_reg'] = np.array([-10.,0.,150.,200.]) ; ave_dim = 'lat'; pname = 'lat_ave' # Lat/on  ranges 
+	#run_info['run_reg'] = np.array([-10.,0.,150.,200.]) ; ave_dim = 'lat'; pname = 'lat_ave' # Lat/on  ranges 
 	#run_info['run_reg'] = np.array([-5.,5.,50.,95.]) ; ave_dim = 'lat'; pname = 'lat_ave' # Lat/on  ranges 
 
 
@@ -204,7 +204,7 @@ def main():
 
 	#
 	if run_var == 'TS':
-		y_min,y_max,ydl_min,ydl_max = 299,305,-0.4,0.4
+		y_min,y_max,ydl_min,ydl_max = 301,302,-0.4,0.4
 		p_title = 'SST (K)'
 	if run_var == 'TMQ':
 		y_min,y_max,ydl_min,ydl_max = 20,60,-3,3
