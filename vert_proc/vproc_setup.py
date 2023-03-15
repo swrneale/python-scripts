@@ -13,7 +13,7 @@ def vprof_setup() :
 		''''' Which case to use???? '''''
 
 		
-		case_types = ['lens'] # 'revert', 'renanl' or 'lens'
+		case_types = ['reanal'] # 'revert', 'renanl' or 'lens'
 		
 		print('"""""" CASES = ',case_types)
 		
@@ -81,8 +81,8 @@ def vprof_setup() :
 			#	case_reanal = ['ERA5','ERAI','CFSR','MERRA2','JRA25'] 
 			#	type_reanal = ['reanal','reanal','reanal','reanal','reanal']
 
-				case_reanal = ['ERA5','ERAI','CFSR','MERRA2','JRA25'] 
-				type_reanal = ['reanal','reanal','reanal','reanal','reanal']
+				case_reanal = ['ERAI','JRA25'] 
+				type_reanal = ['reanal','reanal']
 
 
 		reanal_climo = True # Grab climo. values for mean, Nino and nina events for reanalysis only

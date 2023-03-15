@@ -228,7 +228,7 @@ def main(cluster):
 		## TS FROM HISTORY FILES (just copy for h0 files if they are already read in)
 		## Can still do this for lclimo as it will take observed if reanal
 
-		print('-- Grabbing SST files --')
+		print('-- Grabbing Sea Surface Temperature (SST) files --')
 
 		if case_type[icase] in ['cam6_revert']: # I think this effectively acts as a pointer, I hope!
 			tfiles_ptr = files_ptr 
@@ -239,7 +239,7 @@ def main(cluster):
 
 		# Grabbing PS if needed
 
-		print('-- Grabbing PS files --')
+		print('-- Grabbing Surface Pressure (PS) files --')
 
 		if case_type[icase] in ['cam6_revert']: # Grab the LENS time series or just use existing file_ptr from h0 type output.
 			pfiles_ptr = files_ptr 

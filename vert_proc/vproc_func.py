@@ -47,6 +47,11 @@ import os
 
 
 
+
+
+
+
+
 """
 		Nino/Nina SST information
 
@@ -353,6 +358,9 @@ def h0_month_fix(hist_tseries_var):
 	hist_tseries_var.time.dt.year[0] = cftime.DatetimeNoLeap(1979, 1, 1, 0, 0, 0, 0)
 
 	return hist_tseries_var
+
+
+
 
 
 
@@ -813,9 +821,9 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
 
 
 ''' 
-#########################################################
-	CHANGE COORD NAMES IF NEEDED 
-#########################################################
+	#########################################################
+		CHANGE COORD NAMES IF NEEDED 
+	#########################################################
 
 -Read in data files and change coord names if needed
 
@@ -859,9 +867,9 @@ def change_coords(data_files_in,var_cam_in,case_type_in,case_name_in) :
 
 
 '''
-#########################################################
-	GRAB CLIMOS OF TIME MEAN NINO AND NINA
-#########################################################
+	#########################################################
+		GRAB CLIMOS OF TIME MEAN NINO AND NINA
+	#########################################################
 '''
 
 
@@ -902,11 +910,117 @@ def get_files_climo(case_name,case_type,var_cam,years) :
 
 
 
+'''
+	####################################################################
+		SELECTING CLIMO, TS or HO FILES DEPENDING ON AVAILIBILITY
+	####################################################################
+'''
+
+	
+
+def data_input_type:
+	
+	if not lclimo:
+
+
+		''' Trim datasets for lev/lat/time for simplicity '''
+
+	# Grab time/lev coord.
+
+		lev = files_ptr['lev'].sel(lev=slice(min(p_levs),max(p_levs)))
+
+	# Trimming as much as possible time/lat/lev        
+
+		files_ptr=files_ptr.sel(lat=slice(lats_in,latn_in),time=slice(str(yr0),str(yr1)),lev=slice(min(p_levs),max(p_levs)))
+		pfiles_ptr=pfiles_ptr.sel(lat=slice(lats_in,latn_in),time=slice(str(yr0),str(yr1)))       
+
+
+	# Grab variables
+		var_in = files_ptr[var_name]
+		ps_in = pfiles_ptr['PS']
+		time_in = files_ptr.time
+
+	# Calculate dp        
+		dp_lev = np.diff(lev)
+
+
+	# Array accessing based on type of case.    
+		if case_type[icase] in ['lens1','lens2','c6_amip']:
+			print('-- "Compute" the variable array now (bring it up from lazy array) if != ANALYSES')
+	#            %time var_in = var_in.compute()
 
 
 
 
 
+
+	# Check SST size with Variable size
+
+		if sst_data.time.size != time_in.size : print('SST and VARIABLE sizes DO NOT MATCH - ',sst_data.time.size,' and ',time_in.size) 
+
+		month_nums = time_in.dt.month   
+		hmonths = time_in.dt.strftime("%b")
+
+
+
+		lmon_seas = np.isin(hmonths,seas_mons) # Logical for season months in all months
+		imon_seas = np.argwhere(lmon_seas)[:,0] # Indices
+		hmon_seas = hmonths[imon_seas] # Subsetting full months.
+
+
+
+	## Much easier than above but doing the intersections of months and nino months.
+		inino_seas,inino_ind,imon_nino_ind = np.intersect1d(inino_mons, imon_seas, return_indices=True)
+		inina_seas,inina_ind,imon_nina_ind = np.intersect1d(inina_mons, imon_seas, return_indices=True)
+
+
+	## Could speed up below by reading in var_in for the season months then subsetting that for nino/nina    
+	## Remember: It is reading in a subset of seaonal months and then nino/nina are a subset of those. 
+
+		var_in_inseas = var_df.loc[var_cam]['vscale']*var_in[imon_seas,:,:,:] # Pull only the months we need
+		var_ps_inseas = ps_in[imon_seas,:,:] 
+
+		if case_type[icase] in ['reanal','cam6_revert']:
+			print('-- "Compute" the variable array now (bring it up front lazy array) if == ANALYSES')
+#				%time var_in_inseas = var_in_inseas.compute()
+
+		var_in_seas = var_in_inseas.mean(dim=['time'])  # Perform seasonal average
+		var_ps_seas = var_ps_inseas.mean(dim=['time'])  # 
+
+	# Nino/nina averages
+		var_in_nino = var_in_inseas[imon_nino_ind,:,:,:].mean(dim=['time'])  # Take nino/nina months from the seasonal timeseries months
+		var_in_nina = var_in_inseas[imon_nina_ind,:,:,:].mean(dim=['time']) 
+
+	# Nino/nina anomalies
+		var_in_nino = var_in_nino-var_in_seas
+		var_in_nina = var_in_nina-var_in_seas
+
+		var_ps_nino = var_ps_inseas[imon_nino_ind,:,:].mean(dim=['time'])  # Take nino/nina months from the seasonal timeseries months
+		var_ps_nina = var_ps_inseas[imon_nina_ind,:,:].mean(dim=['time']) 
+
+		varp_in_ps = (var_ps_seas,var_ps_nino,var_ps_nina) 
+
+
+
+	else :    ### Just grab separate data from climo, nino and nina files.
+
+		var_in_seas =  files_ptr[var_name].isel(time=0).sel(lat=slice(lats_in,latn_in))
+		var_in_nino =  files_ptr[var_name].isel(time=1).sel(lat=slice(lats_in,latn_in))
+		var_in_nina =  files_ptr[var_name].isel(time=2).sel(lat=slice(lats_in,latn_in))
+
+
+		lev_in = var_in_seas.lev
+		ilevs = np.where(lev_in >= min(p_levs))
+
+		lev = lev_in[ilevs]
+
+
+		var_in_seas =  var_df.loc[var_cam]['ovscale']*var_in_seas.loc[lev[0]:lev[-1]]
+		var_in_nino =  var_df.loc[var_cam]['ovscale']*var_in_nino.loc[lev[0]:lev[-1]]
+		var_in_nina =  var_df.loc[var_cam]['ovscale']*var_in_nina.loc[lev[0]:lev[-1]]
+
+
+		varp_in_ps = None
 
 
 
