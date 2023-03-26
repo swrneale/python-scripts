@@ -440,7 +440,7 @@ def cam_tend_var_get(files_ptr,var_name):
 ## >JRA-55 CISL-RDA ds628.9 : /glade/collections/rda/data/ds628.9/
 ##
 
-def get_files_tseries(case_name,case_type,var_cam,years) :
+def get_files_tseries(case_name,case_type,var_cam,lats_in,p_levs,years) :
 
 
 	type_desc = {}
@@ -675,7 +675,7 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
 
 
 
-	if case_type =='lense2':   ## LARGE ENSEMBLE WITH E3SMv2 ##
+	if case_type =='lens2':   ## LARGE ENSEMBLE WITH E3SMv2 ##
 
 # Complex ensembles structures. Multiple files need to be trimmed forom directory listing.
 
@@ -797,8 +797,15 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
 # Reverse lat array to get S->N if needed
 	if lat_rev : data_files = data_files.reindex(lat=list(reversed(data_files.lat)))
 
+	
+# Finally trim years.
 
-# Datset info.
+	data_files = data_files.sel(lat=slice(lats_in[0],lats_in[1]),time=slice(str(yr0), str(yr1)))
+	data_files = data_files.sel(lev=slice(min(p_levs),max(p_levs)))
+	data_files = data_files.sel(lat=slice(lats_in[0],lats_in[0]))
+
+								
+# Dataset info.
 
 	print('    -- FILE(S) AVAILABLE TIME RANGE - > ',min(data_files.time.dt.year.values),' to' ,max(data_files.time.dt.year.values))
 	print('')
@@ -874,7 +881,7 @@ def change_coords(data_files_in,var_cam_in,case_type_in,case_name_in) :
 
 
 
-def get_files_climo(case_name,case_type,var_cam,years) :
+def get_files_climo(case_name,case_type,var_cam,lats_in,p_levs,years) :
 
 
 #### Just GRAB the single files for climo, nino and nina.
@@ -896,6 +903,17 @@ def get_files_climo(case_name,case_type,var_cam,years) :
 	print('    -- CLIMO FILE SET')
 	print(files_glade)
 	data_files = xr.open_mfdataset(files_glade, decode_cf=True, decode_times = False,concat_dim='time', combine='nested') # 3 mins ERA5: 1979-1990
+
+#  Slice according to latitude and pressure.
+	
+	lev_in = data_files.lev
+	ilevs = np.where(lev_in >= min(p_levs))
+
+	lev = lev_in[ilevs]
+								
+	data_files = data_files.sel(lev=slice(lev[0],lev[-1]))
+	data_files = data_files.sel(lat=slice(lats_in[0],lats_in[1]),lev=slice(min(p_levs),max(p_levs)))					
+								
 #	data_files = data_files.isel(time=slice([1,2,12])).mean(dim='time')
 
 
@@ -912,27 +930,22 @@ def get_files_climo(case_name,case_type,var_cam,years) :
 
 '''
 	####################################################################
-		SELECTING CLIMO, TS or HO FILES DEPENDING ON AVAILIBILITY
+		SELECTING TO USE CLIMO, TS or HO FILES DEPENDING ON AVAILIBILITY
 	####################################################################
 '''
 
 	
 
-def data_input_type:
+def derive_nino_vars(files_ptr,pfiles_ptr,case_type,var_df,inino_mons,inina_mons,seas_mons):
 	
-	if not lclimo:
 
+	if not lclimo:
 
 		''' Trim datasets for lev/lat/time for simplicity '''
 
 	# Grab time/lev coord.
 
-		lev = files_ptr['lev'].sel(lev=slice(min(p_levs),max(p_levs)))
-
-	# Trimming as much as possible time/lat/lev        
-
-		files_ptr=files_ptr.sel(lat=slice(lats_in,latn_in),time=slice(str(yr0),str(yr1)),lev=slice(min(p_levs),max(p_levs)))
-		pfiles_ptr=pfiles_ptr.sel(lat=slice(lats_in,latn_in),time=slice(str(yr0),str(yr1)))       
+		lev = files_ptr['lev']
 
 
 	# Grab variables
@@ -1004,15 +1017,10 @@ def data_input_type:
 
 	else :    ### Just grab separate data from climo, nino and nina files.
 
-		var_in_seas =  files_ptr[var_name].isel(time=0).sel(lat=slice(lats_in,latn_in))
-		var_in_nino =  files_ptr[var_name].isel(time=1).sel(lat=slice(lats_in,latn_in))
-		var_in_nina =  files_ptr[var_name].isel(time=2).sel(lat=slice(lats_in,latn_in))
+		var_in_seas =  files_ptr[var_name].isel(time=0)
+		var_in_nino =  files_ptr[var_name].isel(time=1)
+		var_in_nina =  files_ptr[var_name].isel(time=2)
 
-
-		lev_in = var_in_seas.lev
-		ilevs = np.where(lev_in >= min(p_levs))
-
-		lev = lev_in[ilevs]
 
 
 		var_in_seas =  var_df.loc[var_cam]['ovscale']*var_in_seas.loc[lev[0]:lev[-1]]
@@ -1023,7 +1031,10 @@ def data_input_type:
 		varp_in_ps = None
 
 
-
+	var_in_lev = (var_in_seas,var_in_nino,var_in_nina) # Put in tuple for looping.
+		
+		
+	return var_in_lev,var_in_ps
 
 
 

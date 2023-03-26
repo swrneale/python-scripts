@@ -55,7 +55,7 @@ importlib.reload(mysetup)
 
 
 
-def main(cluster):
+def main():
 
 #	client = Client(cluster)
 #	client
@@ -83,7 +83,7 @@ def main(cluster):
 
 	''' REGIONAL SPECS (LAT/LON/LEV) '''
 
-	lats_in = -45. ; latn_in = 45.
+	lats_in = -45,45
 	lonw_in = 0. ; lone_in = 360.
 	ppmin = 50. ; ppmax = 1050.
 
@@ -219,9 +219,10 @@ def main(cluster):
 		print('-- Grabbing variable files --')
 
 		if lclimo:  # Read in tseries based files here for the analysis variable
-			files_ptr,var_name   = mypy.get_files_climo(sim_name,case_type[icase],var_cam,years_data) # Grab variable
+			files_ptr,var_name   = mypy.get_files_climo(sim_name,case_type[icase],var_cam,lats_in,p_levs,years_data) # Grab variable
 		else :
-			files_ptr,var_name   = mypy.get_files_tseries(sim_name,case_type[icase],var_cam,years_data) # Grab variable
+			files_ptr,var_name   = mypy.get_files_tseries(sim_name,case_type[icase],var_cam,lats_in,p_levs,years_data) # Grab variable
+			
 
 
 
@@ -234,18 +235,20 @@ def main(cluster):
 			tfiles_ptr = files_ptr 
 			tvar_name = 'TS'
 		else :   
-			tfiles_ptr,tvar_name = mypy.get_files_tseries(sim_name,case_type[icase],'TS',years_data) # Grab TS for nino timeseries
+			tfiles_ptr,tvar_name = mypy.get_files_tseries(sim_name,case_type[icase],'TS',lats_in,p_levs,years_data) # Grab TS for nino timeseries
 
 
 		# Grabbing PS if needed
 
 		print('-- Grabbing Surface Pressure (PS) files --')
 
-		if case_type[icase] in ['cam6_revert']: # Grab the LENS time series or just use existing file_ptr from h0 type output.
+		if case_type[icase] in ['cam6_revert']: # Grab the LENS time series or just use existing filse_ptr from h0 type output.
 			pfiles_ptr = files_ptr 
 		else:
 			if not lclimo: # Don't need to read in PS for climos.
-				pfiles_ptr,pvar_name = mypy.get_files_tseries(sim_name,case_type[icase],'PS',years_data) # Grab TS for nino timeseries
+				pfiles_ptr,pvar_name = mypy.get_files_tseries(sim_name,case_type[icase],'PS',lats_in,p_levyears_data) # Grab TS for nino timeseries
+			else :
+				pfiles_ptr=None
 
 
 
@@ -254,7 +257,7 @@ def main(cluster):
 
 		print('-- Calculating and plotting nino SST anomalies - this will never be climo currently')
 
-		sst_data = tfiles_ptr[tvar_name].sel(lat=slice(lats_in,latn_in),time=slice(str(yr0), str(yr1)))
+		sst_data = tfiles_ptr[tvar_name]
 
 
 
@@ -270,113 +273,17 @@ def main(cluster):
 
 
 
-		''''' FORK FOR CLIMO VERSUS h0/TSREIS INPUT FILE FORMAT '''''
+		
+		'''
+			#############################################################    
+			### FORK FOR CLIMO VERSUS h0/TSREIS INPUT FILE FORMAT ?
+			#############################################################    
+		'''     
+
+		var_in_lev,var_in_ps = mypy.derive_nino_vars(lclimo,files_ptr,pfiles_ptr,case_type,var_df,inino_mons,inina_mons,imon_seas,seas_mons)
 
 
-		if not lclimo:
-
-
-
-			''' Trim datasets for lev/lat/time for simplicity '''
-
-		# Grab time/lev coord.
-
-			lev = files_ptr['lev'].sel(lev=slice(min(p_levs),max(p_levs)))
-
-		# Trimming as much as possible time/lat/lev        
-
-			files_ptr=files_ptr.sel(lat=slice(lats_in,latn_in),time=slice(str(yr0),str(yr1)),lev=slice(min(p_levs),max(p_levs)))
-			pfiles_ptr=pfiles_ptr.sel(lat=slice(lats_in,latn_in),time=slice(str(yr0),str(yr1)))       
-
-
-		# Grab variables
-			var_in = files_ptr[var_name]
-			ps_in = pfiles_ptr['PS']
-			time_in = files_ptr.time
-
-		# Calculate dp        
-			dp_lev = np.diff(lev)
-
-
-		# Array accessing based on type of case.    
-			if case_type[icase] in ['lens1','lens2','c6_amip']:
-				print('-- "Compute" the variable array now (bring it up from lazy array) if != ANALYSES')
-		#            %time var_in = var_in.compute()
-
-
-
-
-
-
-		# Check SST size with Variable size
-
-			if sst_data.time.size != time_in.size : print('SST and VARIABLE sizes DO NOT MATCH - ',sst_data.time.size,' and ',time_in.size) 
-
-			month_nums = time_in.dt.month   
-			hmonths = time_in.dt.strftime("%b")
-
-
-
-			lmon_seas = np.isin(hmonths,seas_mons) # Logical for season months in all months
-			imon_seas = np.argwhere(lmon_seas)[:,0] # Indices
-			hmon_seas = hmonths[imon_seas] # Subsetting full months.
-
-
-
-		## Much easier than above but doing the intersections of months and nino months.
-			inino_seas,inino_ind,imon_nino_ind = np.intersect1d(inino_mons, imon_seas, return_indices=True)
-			inina_seas,inina_ind,imon_nina_ind = np.intersect1d(inina_mons, imon_seas, return_indices=True)
-
-
-		## Could speed up below by reading in var_in for the season months then subsetting that for nino/nina    
-		## Remember: It is reading in a subset of seaonal months and then nino/nina are a subset of those. 
-
-			var_in_inseas = var_df.loc[var_cam]['vscale']*var_in[imon_seas,:,:,:] # Pull only the months we need
-			var_ps_inseas = ps_in[imon_seas,:,:] 
-
-			if case_type[icase] in ['reanal','cam6_revert']:
-				print('-- "Compute" the variable array now (bring it up front lazy array) if == ANALYSES')
-#				%time var_in_inseas = var_in_inseas.compute()
-
-			var_in_seas = var_in_inseas.mean(dim=['time'])  # Perform seasonal average
-			var_ps_seas = var_ps_inseas.mean(dim=['time'])  # 
-
-		# Nino/nina averages
-			var_in_nino = var_in_inseas[imon_nino_ind,:,:,:].mean(dim=['time'])  # Take nino/nina months from the seasonal timeseries months
-			var_in_nina = var_in_inseas[imon_nina_ind,:,:,:].mean(dim=['time']) 
-
-		# Nino/nina anomalies
-			var_in_nino = var_in_nino-var_in_seas
-			var_in_nina = var_in_nina-var_in_seas
-
-			var_ps_nino = var_ps_inseas[imon_nino_ind,:,:].mean(dim=['time'])  # Take nino/nina months from the seasonal timeseries months
-			var_ps_nina = var_ps_inseas[imon_nina_ind,:,:].mean(dim=['time']) 
-
-			varp_in_ps = (var_ps_seas,var_ps_nino,var_ps_nina) 
-
-
-
-		else :    ### Just grab separate data from climo, nino and nina files.
-
-			var_in_seas =  files_ptr[var_name].isel(time=0).sel(lat=slice(lats_in,latn_in))
-			var_in_nino =  files_ptr[var_name].isel(time=1).sel(lat=slice(lats_in,latn_in))
-			var_in_nina =  files_ptr[var_name].isel(time=2).sel(lat=slice(lats_in,latn_in))
-
-
-			lev_in = var_in_seas.lev
-			ilevs = np.where(lev_in >= min(p_levs))
-
-			lev = lev_in[ilevs]
-
-
-			var_in_seas =  var_df.loc[var_cam]['ovscale']*var_in_seas.loc[lev[0]:lev[-1]]
-			var_in_nino =  var_df.loc[var_cam]['ovscale']*var_in_nino.loc[lev[0]:lev[-1]]
-			var_in_nina =  var_df.loc[var_cam]['ovscale']*var_in_nina.loc[lev[0]:lev[-1]]
-
-
-			varp_in_ps = None
-
-
+		
 
 
 
@@ -473,7 +380,7 @@ def main(cluster):
 				pxmin = xmin if iplot == 0 else axmin
 				pxmax = xmax if iplot == 0 else axmax
 
-		# Regional average
+		## Regional average
 				var_fig = var_plot.mean(dim=['lat','lon'],skipna = True)   
 
 
