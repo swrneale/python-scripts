@@ -145,13 +145,12 @@ def mdtf_case_list():
 	#########################################
 
 
-	e0=101 ; en=301   #Start/end ens. members
+	e0=101 ; en=501   #Start/end ens. members
 
 	erange = np.arange(e0,en+10,10) # # incremented by 10.
 	nens = erange.size
-	print(nens)
+	
 	nerange = np.arange(1,nens+1,1)
-	print(nerange)
 
 	erun = ['v2.FV1.historical_%04d'%(itt) for itt in erange]
 	enum = ['E3SM2.E%01d'%(itt) for itt in nerange]

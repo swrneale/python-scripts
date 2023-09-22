@@ -539,13 +539,13 @@ def get_files_tseries(case_name,case_type,var_cam,years) :
                     dir_glade = dir_rda+rda_cat+'/'
                     files_glade  = np.array([dir_rda+rda_cat+"/ei.moda.an.pl/ei.moda.an.pl.regn128%s.%03d%02d0100.nc"%(var_fname,y,m) for y in range(yr0,yr1+1) for m in range(1,12)])
 
-                    print('hi')
+                   
                 else :
 
                     files_glade  = np.array([dir_mydata+case_name+"/"+var_fname+".mon.mean.nc"])
 
                     print(files_glade)
-                    print('hi4')
+                   
 
             if case_name=='ERA40' :  ## UNFINSHED
                 var_anal_fmap = {'T': 't',   'Q':'q'}

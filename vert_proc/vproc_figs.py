@@ -18,7 +18,10 @@ from geocat.comp import interp_hybrid_to_pressure
 
 from scipy.ndimage.filters import gaussian_filter
 
+import vproc_setup as mysetup
 
+dir_proot = '//glade/u/home/rneale/python/python-figs/vert_proc/'
+fig_dpi = 200
 
 ''' 
 	#########################################################
@@ -41,13 +44,15 @@ def clevs_ref():
 	#########################################################
 '''
 
-def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr,dir_proot,ldiv):
+def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr):
 	
 	'''
 		Input Data Info
 	'''
 
-	print('-- Plotting pressure of minimum/maximum for ',var_plt)
+
+	
+	print('-- Plotting pressure of minimum/maximum for ',var_plt[0])
 	
 
 	cc_pc = ccrs.PlateCarree(central_longitude=180)
@@ -71,7 +76,7 @@ def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr,dir_proot,ldi
 	plevel = '500'
 	season = 'DJF'
 
-	mvar_grab = 'OMEGA' ; ovar_grab = 'OMEGA'
+
 
 	axl=axl.flatten()
 	
@@ -125,9 +130,10 @@ def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr,dir_proot,ldi
 	
 	
 # Find divergence and plot
-		if ldiv and  var_plt == 'OMEGA':
+
+		if var_plt[1] == 'OMEGA':
 			da_in = da_in.differentiate("lev")
-	
+		
 		
 
 		for imm,mname in enumerate(mnames):
@@ -151,7 +157,7 @@ def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr,dir_proot,ldi
 
 # Options for all plots.
 	
-
+	
 	mp.subplots_adjust(bottom=0.25)
 
 	fig.suptitle(case+' - Level of Maxium/Minimum',fontsize=50)
@@ -164,7 +170,9 @@ def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr,dir_proot,ldi
 	cbar_ax.set_yticklabels(clevsr,fontsize=20)
 	cbar_ax.invert_yaxis()
 
-	mp.savefig(dir_proot+case+'_'+var_plt+'_minmax_level.png',dpi=50)
+	
+	
+	mp.savefig(dir_proot+case+'_'+var_plt[0]+'_minmax_level.png',dpi=fig_dpi)
 
 
 	
@@ -183,7 +191,7 @@ def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr,dir_proot,ldi
 	#########################################################
 	'''
 	
-def scat_plot(case_type,case,da_in,da_in_ps,reg_df,fls_ptr,dir_proot):
+def scat_plot(case_type,case,var_cam,var2_cam,da_in_all,da2_in_all,da_in_ps,reg_df,fls_ptr):
 
 	import seaborn as sb
 	
@@ -195,63 +203,108 @@ def scat_plot(case_type,case,da_in,da_in_ps,reg_df,fls_ptr,dir_proot):
 	var_df = pd.DataFrame()
 	
 	# Lev coordinate change
+
+	tav_names = ['Seasonal','Nino34','Nina34']
+
 	
-	if case_type != 'reanal':   
-		da_in = cam_lev2plev(da_in,da_in_ps[0],fls_ptr)	
-		
-		
-	for ireg,reg in enumerate(reg_df.index):  ## 4 regions let's assume ##
+	var_info = mysetup.vprof_set_vars()
+	 
+	var1_lname = var_info.loc[var_cam[0]]['long_name']   
+	var2_lname = var_info.loc[var2_cam[0]]['long_name']   
 	
-		reg_name = reg_df.loc[reg]['long_name'] 
+	var1_scale = var_info.loc[var_cam[0]]['vscale']
+	var2_scale = var_info.loc[var2_cam[0]]['vscale']
 		
-		reg_s = reg_df.loc[reg]['lat_s'] ; reg_n = reg_df.loc[reg]['lat_n']
-		reg_w = reg_df.loc[reg]['lon_w'] ; reg_e = reg_df.loc[reg]['lon_e']
+	var1_units = var_info.loc[var_cam[0]]['vunits']
+	var2_units = var_info.loc[var2_cam[0]]['vunits']
+	
+# Some names units scaling
+
+	var_df = mysetup.vprof_set_vars()
+	
+	for itav, da_tav in enumerate(da_in_all): 
+	
+		da_in = da_in_all[itav]
+		da2_in = da2_in_all[itav] 
+	
+		if case_type != 'reanal':   
+			da_in = cam_lev2plev(da_in,da_in_ps[0],fls_ptr)	
+			da2_in = cam_lev2plev(da2_in,da_in_ps[0],fls_ptr)	
+			
+		for ireg,reg in enumerate(reg_df.index):  ## 4 regions let's assume ##
+	
+			reg_name = reg_df.loc[reg]['long_name'] 
+		
+			reg_s = reg_df.loc[reg]['lat_s'] ; reg_n = reg_df.loc[reg]['lat_n']
+			reg_w = reg_df.loc[reg]['lon_w'] ; reg_e = reg_df.loc[reg]['lon_e']
 
 		
-		print('  > Construct scatter plot for -- ',reg_name)
+			print('  > Construct scatter plot for -- ',reg_name)
 
-		da_reg = da_in.loc[:,reg_s:reg_n,reg_w:reg_e]
-		var_x = da_reg.min(dim='lev').values.ravel()
-		var_y = da_reg.differentiate('lev').min(dim='lev').values.ravel()
-		nlatlon = var_x.size
+			da_reg = da_in.loc[:,reg_s:reg_n,reg_w:reg_e]
+			da2_reg = da2_in.loc[:,reg_s:reg_n,reg_w:reg_e]
+			
+			var_x = da_reg.max(dim='lev').values.ravel()
+			var_y = da2_reg.max(dim='lev').values.ravel()
 
-		var_df_reg = pd.DataFrame({'xvar':var_x[ip],'yvar':var_y[ip],'Region':reg_name} for ip in range(nlatlon))
-		var_df = pd.concat([var_df,var_df_reg],ignore_index=True)
+			if var_cam[0] == 'DIV':
+				var_x = da_reg.differentiate('lev').max(dim='lev').values.ravel()
+			if var2_cam[0] == 'DIV':
+				var_y = da_reg.differentiate('lev').max(dim='lev').values.ravel()	
+			
+			var_x = var_x*var1_scale
+			var_y = var_y*var2_scale
+				
+			nlatlon = var_x.size
+			
+			var_df_reg = pd.DataFrame({'xvar':var_x[ip],'yvar':var_y[ip],'Region':reg_name} for ip in range(nlatlon))
+			var_df = pd.concat([var_df,var_df_reg],ignore_index=True)
 	
 	
-	print('  -- Plotting')
+		print('  -- Plotting')
 		
-#	xrange = [-0.04,0.12]
-#	yrange = [-1e-4,8e-4]
+#		xrange = [-0.04,0.12]
+#		yrange = [-1e-4,8e-4]
 	
-	xrange = [-0.12,0.04]
-	yrange = [-8e-4,1e-4]
+	#	xrange = [-0.12,0.04]
+#		yrange = [-8e-4,1e-4]
+		
+		slevels = [0.02,0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 	
-	slevels = [0.02,0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+#		sclip = ((xrange[0],xrange[1]),(yrange[0],yrange[1])) 
 	
-	sclip = ((xrange[0],xrange[1]),(yrange[0],yrange[1])) 
-	
-	
-	axs = sb.kdeplot(var_df,x='xvar',y='yvar',hue='Region',levels=slevels,clip=sclip,common_norm=True)
+		mp.figure(figsize=(15,8))
+		
+#		axs = sb.kdeplot(var_df,x='xvar',y='yvar',hue='Region',levels=slevels,clip=sclip,common_norm=True)
+		axs = sb.kdeplot(var_df,x='xvar',y='yvar',hue='Region',levels=slevels,common_norm=True)
 
 #	axs = sb.jointplot(var_df, kind="kde",x='xvar',y='yvar',hue='Region',levels=slevels,clip=sclip,common_norm=True)
+	
+		axs.axhline(0.0,color='k',linestyle='--')
+		axs.axvline(0.0,color='k',linestyle='--')
+		
+		mp.setp(axs.get_legend().get_texts(), fontsize='20') # for legend text
+		mp.setp(axs.get_legend().get_title(), fontsize='28') # for legend title
 
-	sb.move_legend(axs, "lower right")
+		
+
+		
+#		sb.move_legend(axs, "lower right")
 	
-	mp.hlines(0., xrange[0],xrange[1], color='black',lw=1,linestyle='--')
-	mp.vlines(0., yrange[0],yrange[1], color='black',lw=1,linestyle='--')
+#		mp.hlines(0., xrange[0],xrange[1], color='black',lw=1,linestyle='--')
+#		mp.vlines(0., yrange[0],yrange[1], color='black',lw=1,linestyle='--')
 	
-	mp.xlabel('Maximum Ascent',fontsize=20)
-	mp.ticklabel_format(axis='y', style='sci', scilimits=(1,4))
-	mp.xlim(xrange)
+		mp.xlabel('Maximum '+var1_lname+' ('+var1_units+')',fontsize=20)
+		mp.ticklabel_format(axis='y', style='sci', scilimits=(1,4))
+#		mp.xlim(xrange)
 	
-	mp.ylabel('Maximum Divergence',fontsize=20)
-	mp.ylim(yrange)
+		mp.ylabel('Maximum '+var2_lname+' ('+var2_units+')',fontsize=20)
+#		mp.ylim(yrange)
 	
-	mp.suptitle(case,fontsize=20)
-	mp.savefig(dir_proot+case+'_nino_min_scatter.png', dpi=80)
+		mp.suptitle(case+' - '+tav_names[itav],fontsize=20)
+		mp.savefig(dir_proot+case+'_'+tav_names[itav]+'_min_scatter.png', dpi=fig_dpi)
 	
-	mp.show()
+		mp.show()
 
 
 			
@@ -359,6 +412,7 @@ def leg_vprof(cases,case_type):
 	
 	# LOOP CASES #
 	
+	
 	for ic,case in enumerate(cases):
 		
 		
@@ -404,3 +458,76 @@ def leg_vprof(cases,case_type):
 	
 	return leg_elements,leg_labels,pmark,lcolor,lwidth,lstyle
 			
+
+	
+
+'''
+	###################################################################
+			PLOT REGIONS WHERE VERTICAL PROFILES ARE TAKEN FROM
+	###################################################################
+	'''
+	
+def vprof_reg_plot(reg_df):
+	
+	
+	import matplotlib.patches as mpatches
+
+	import cartopy.crs as ccrs
+	from cartopy.feature import LAND
+
+	desired_proj = ccrs.PlateCarree(central_longitude=180.)
+
+	fig = mp.figure(figsize=(10,10))
+	ax = mp.subplot(projection=desired_proj)
+
+	ax.set_global()
+	ax.set_extent([80, 280, -20, 50])
+	facecolors = ['b','darkorange','g']
+	
+	reg_all = reg_df.index 
+#	reg_name = reg_df.loc[reg]['long_name'] 	
+	print(reg_all)
+
+	
+	for ireg,reg in enumerate(reg_all):
+	
+		print('reg=',reg)
+	
+		reg_s = reg_df.loc[reg]['lat_s'] ; reg_n = reg_df.loc[reg]['lat_n']
+		reg_w = reg_df.loc[reg]['lon_w'] ; reg_e = reg_df.loc[reg]['lon_e']
+	
+		dreg_lat = reg_n-reg_s 
+		dreg_lon = reg_e-reg_w
+	
+		ax.add_patch(mpatches.Rectangle(xy=[reg_w, reg_s], width=dreg_lon, height=dreg_lat,
+                                    facecolor=facecolors[ireg],
+                                    alpha=0.2,
+                                    transform=ccrs.PlateCarree()))
+		
+		
+	ax.gridlines()
+	ax.coastlines()
+#	ax.set_xlim([80,300])
+	ax.add_feature(LAND,color='k')
+
+	mp.savefig(dir_proot+'test_region.png', dpi=fig_dpi, bbox_inches='tight') 
+	mp.show()
+	
+		
+	
+	
+	
+	
+	
+	'''
+	#########################################################
+		
+	#########################################################
+	'''
+	
+def vprof_reg_plot_xxxxx(cases,case_type):
+	
+	
+	
+	
+	return ax

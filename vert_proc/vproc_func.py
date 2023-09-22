@@ -41,13 +41,13 @@ from geocat.comp import interp_hybrid_to_pressure
 #from nc_time_axis import CalendarDateTime
 import subprocess as sp
 import os 
-
+import sys
 
 #####################################################
 
 
 
-
+dir_proot = '//glade/u/home/rneale/python/python-figs/vert_proc/'
 
 
 
@@ -62,7 +62,7 @@ import os
 """
 
 
-def nino_sst_anom(run_case,sst_data,nino,dir_proot):
+def nino_sst_anom(run_case,sst_data,nino):
 
 
 
@@ -472,6 +472,14 @@ def get_files_tseries(case_name,case_type,var_cam,lats_in,p_levs,years) :
 	decode_times = True
 
 
+	''' Save Out var_name as it isn't the one being extracted '''
+	
+	if var_cam == 'DIV':
+		var_cam_save = 'DIV'
+	else:
+		var_cam_save = var_cam
+	
+	
 	''' ANALYSIS/OBSERVED '''
 
 
@@ -675,14 +683,14 @@ def get_files_tseries(case_name,case_type,var_cam,lats_in,p_levs,years) :
 
 
 
-	if case_type =='lens2':   ## LARGE ENSEMBLE WITH E3SMv2 ##
+	if case_type =='lense2':   ## LARGE ENSEMBLE WITH E3SMv2 ##
 
 # Complex ensembles structures. Multiple files need to be trimmed forom directory listing.
-
+		
 
 		dir_lens = '/glade/campaign/cgd/ccr/E3SMv2/FV_regridded/'
 
-		print('    -- Grabbing file(s) for LENSE2(E3SMv2) - Variable = ',var_cam)
+		print('    -- Grabbing file(s) for LENS2(E3SMv2) - Variable = ',var_cam)
 
 		dir_files_stub = dir_lens+case_name+'/atm/proc/tseries/month_1/'+case_name+'.eam.h0.'+var_cam+'.' # Need OS call here
 
@@ -800,10 +808,15 @@ def get_files_tseries(case_name,case_type,var_cam,lats_in,p_levs,years) :
 	
 # Finally trim years.
 
-	data_files = data_files.sel(lat=slice(lats_in[0],lats_in[1]),time=slice(str(yr0), str(yr1)))
-	data_files = data_files.sel(lev=slice(min(p_levs),max(p_levs)))
-	data_files = data_files.sel(lat=slice(lats_in[0],lats_in[0]))
 
+	data_files = data_files.sel(lat=slice(lats_in[0],lats_in[1]),time=slice(str(yr0), str(yr1)))
+	
+	if var_cam != 'TS':
+		data_files = data_files.sel(lev=slice(min(p_levs),max(p_levs)))
+
+	
+	
+	
 								
 # Dataset info.
 
@@ -892,8 +905,12 @@ def get_files_climo(case_name,case_type,var_cam,lats_in,p_levs,years) :
 	dir_mydata = '/glade/work/rneale/data/'
 
 	var_anal_map  = {'T': 'ta',   'Q':'hus' , 'Z3': 'hgt',   'U':'ua', 'V':'va',  'OMEGA':'omega'}
-	var_vname = var_anal_map[var_cam]
-
+	try:
+		var_vname = var_anal_map[var_cam]
+	except:
+		print('Mapping for CAM->obs. variable not registered -- '+var_cam)
+		sys.exit()
+		
 	case_glade0 = dir_mydata+case_name+'/'+case_name+'_'
 
 	# Grab named climo/nino/nina files
@@ -901,7 +918,8 @@ def get_files_climo(case_name,case_type,var_cam,lats_in,p_levs,years) :
 
 	# Read files onto same dataset, but don't decdode times.
 	print('    -- CLIMO FILE SET')
-	print(files_glade)
+	
+	print('\n'.join(files_glade))
 	data_files = xr.open_mfdataset(files_glade, decode_cf=True, decode_times = False,concat_dim='time', combine='nested') # 3 mins ERA5: 1979-1990
 
 #  Slice according to latitude and pressure.
@@ -911,8 +929,7 @@ def get_files_climo(case_name,case_type,var_cam,lats_in,p_levs,years) :
 
 	lev = lev_in[ilevs]
 								
-	data_files = data_files.sel(lev=slice(lev[0],lev[-1]))
-	data_files = data_files.sel(lat=slice(lats_in[0],lats_in[1]),lev=slice(min(p_levs),max(p_levs)))					
+	data_files = data_files.sel(lat=slice(lats_in[0],lats_in[1]))					
 								
 #	data_files = data_files.isel(time=slice([1,2,12])).mean(dim='time')
 
@@ -936,7 +953,8 @@ def get_files_climo(case_name,case_type,var_cam,lats_in,p_levs,years) :
 
 	
 
-def derive_nino_vars(files_ptr,pfiles_ptr,case_type,var_df,inino_mons,inina_mons,seas_mons):
+def derive_nino_vars(lclimo,var_name,var_cam,p_levs,files_ptr,pfiles_ptr,case_type,var_df,inino_mons,inina_mons,seas_mons):
+	
 	
 
 	if not lclimo:
@@ -957,8 +975,9 @@ def derive_nino_vars(files_ptr,pfiles_ptr,case_type,var_df,inino_mons,inina_mons
 		dp_lev = np.diff(lev)
 
 
-	# Array accessing based on type of case.    
-		if case_type[icase] in ['lens1','lens2','c6_amip']:
+	# Array accessing based on type of case. 
+		
+		if case_type in ['lens1','lens2','c6_amip']:
 			print('-- "Compute" the variable array now (bring it up from lazy array) if != ANALYSES')
 	#            %time var_in = var_in.compute()
 
@@ -969,7 +988,7 @@ def derive_nino_vars(files_ptr,pfiles_ptr,case_type,var_df,inino_mons,inina_mons
 
 	# Check SST size with Variable size
 
-		if sst_data.time.size != time_in.size : print('SST and VARIABLE sizes DO NOT MATCH - ',sst_data.time.size,' and ',time_in.size) 
+#		if sst_data.time.size != time_in.size : print('SST and VARIABLE sizes DO NOT MATCH - ',sst_data.time.size,' and ',time_in.size) 
 
 		month_nums = time_in.dt.month   
 		hmonths = time_in.dt.strftime("%b")
@@ -993,7 +1012,7 @@ def derive_nino_vars(files_ptr,pfiles_ptr,case_type,var_df,inino_mons,inina_mons
 		var_in_inseas = var_df.loc[var_cam]['vscale']*var_in[imon_seas,:,:,:] # Pull only the months we need
 		var_ps_inseas = ps_in[imon_seas,:,:] 
 
-		if case_type[icase] in ['reanal','cam6_revert']:
+		if case_type in ['reanal','cam6_revert']:
 			print('-- "Compute" the variable array now (bring it up front lazy array) if == ANALYSES')
 #				%time var_in_inseas = var_in_inseas.compute()
 
@@ -1021,25 +1040,67 @@ def derive_nino_vars(files_ptr,pfiles_ptr,case_type,var_df,inino_mons,inina_mons
 		var_in_nino =  files_ptr[var_name].isel(time=1)
 		var_in_nina =  files_ptr[var_name].isel(time=2)
 
+		var_in_seas =  var_df.loc[var_cam]['ovscale']*var_in_seas.loc[max(p_levs):min(p_levs)]
+		var_in_nino =  var_df.loc[var_cam]['ovscale']*var_in_nino.loc[max(p_levs):min(p_levs)]
+		var_in_nina =  var_df.loc[var_cam]['ovscale']*var_in_nina.loc[max(p_levs):min(p_levs)]
 
-
-		var_in_seas =  var_df.loc[var_cam]['ovscale']*var_in_seas.loc[lev[0]:lev[-1]]
-		var_in_nino =  var_df.loc[var_cam]['ovscale']*var_in_nino.loc[lev[0]:lev[-1]]
-		var_in_nina =  var_df.loc[var_cam]['ovscale']*var_in_nina.loc[lev[0]:lev[-1]]
-
-
+		print("Before and after...")
+	
+		
 		varp_in_ps = None
 
 
 	var_in_lev = (var_in_seas,var_in_nino,var_in_nina) # Put in tuple for looping.
 		
 		
-	return var_in_lev,var_in_ps
+	return var_in_lev,varp_in_ps
 
 
 
 
+'''
+	####################################################################
+		SELECT REGIONS AND SUBSET DATA FOR VERTICAL PROFILES
+	####################################################################
+'''
 
+	
+def vprof_set_region(ireg,reg_df,varp_in):
+
+
+	reg = reg_df.index[0] 
+	print(reg)
+	reg_name = reg_df.loc[reg]['long_name'] 
+	
+
+	reg_s = reg_df.loc[reg]['lat_s'] ; reg_n = reg_df.loc[reg]['lat_n']
+	reg_w = reg_df.loc[reg]['lon_w'] ; reg_e = reg_df.loc[reg]['lon_e']
+
+	print()
+	print('-- Region = ',reg_name,' - ',reg_s,reg_n,reg_w,reg_e)
+
+	reg_a_str = '%d-%d\u00b0E %.1f-%d\u00b0N' % (reg_w,reg_e,reg_s,reg_n)
+	reg_a_out = '%d-%dE_%.1f-%dN' % (reg_w,reg_e,reg_s,reg_n)  
+
+	print('-- Averaging for region - ',reg_a_str)
+
+
+
+
+### Compute Seasonal/El Nino/La Nina time averaging ###
+
+
+	varp_seas = varp_in[0].loc[:,reg_s:reg_n,reg_w:reg_e]
+	varp_nino = varp_in[1].loc[:,reg_s:reg_n,reg_w:reg_e]
+	varp_nina = varp_in[2].loc[:,reg_s:reg_n,reg_w:reg_e]
+
+
+	varp_reg = (varp_seas,varp_nino,varp_nina) # Put in tuple for looping back in the main code.
+
+
+	
+
+	return varp_in,reg_name,reg_w,reg_e,reg_s,reg_n
 
 
 

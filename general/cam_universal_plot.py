@@ -26,10 +26,7 @@ import metpy.calc as mpc
 
 
 '''
-
-Lat Lon Countour Plots
-
-
+Lat Lon Contour Plots
 '''
 
 def latlon_countour:

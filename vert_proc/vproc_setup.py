@@ -13,9 +13,10 @@ def vprof_setup() :
 		''''' Which case to use???? '''''
 
 		
-		case_types = ['reanal'] # 'revert', 'renanl' or 'lens'
+		case_types = ['lens'] # 'revert', 'renanl' or 'lens'
 		
-		print('"""""" CASES = ',case_types)
+		print('+++++++++++  CASE TYPES ++++++++++++')
+		print(case_types)
 		
 
 		''' ##### REVERT EXPERIMENTS ##### '''
@@ -39,7 +40,7 @@ def vprof_setup() :
 
 			pref_out = 'c5_c6_scatter'  
 			#ase_desc = ['C6','rC5','rCE2i','rUW','rMG1','rC5p','rZMc','rpfrac']  
-			case_desc = ['C6','rC5']
+			case_desc = ['C6']
 
 		###
 			nrevert = len(case_desc)
@@ -58,13 +59,14 @@ def vprof_setup() :
 		
 			pref_out = 'lense2_divlev_test'    
 
-#			lens_set = 'lens1' ; lens_suff = 'CE1' # lens1, lens2, c6_amip
+			lens_set = 'lens1' ; lens_suff = 'CE1' # lens1, lens2, c6_amip
 #			lens_set = 'lens2' ; lens_suff = 'CE2'
-			lens_set = 'lense2' ; lens_suff = 'E3SM2'
+#			lens_set = 'lense2' ; lens_suff = 'E3SM2'
 			
 			#	lens_set = 'c6_amip' ; lens_suff = 'C6'
 
-			nens = 3
+			nens = 2
+			
 		####
 
 			case_desc = [lens_suff+'.E%01d'%(itt) for itt in range(1,nens+1)]
@@ -81,8 +83,8 @@ def vprof_setup() :
 			#	case_reanal = ['ERA5','ERAI','CFSR','MERRA2','JRA25'] 
 			#	type_reanal = ['reanal','reanal','reanal','reanal','reanal']
 
-				case_reanal = ['ERAI','JRA25'] 
-				type_reanal = ['reanal','reanal']
+				case_reanal = ['ERAI'] 
+				type_reanal = ['reanal']
 
 
 		reanal_climo = True # Grab climo. values for mean, Nino and nina events for reanalysis only
@@ -143,9 +145,10 @@ def vprof_set_vars() :
 	var_desc['ZMDQ']   = ['dq/dt Convection',86400.*1000., 1.,-4.,4.,-4.,4.,'g/kg/day']
 	var_desc['MPDT']   = ['dT/dt Microphysics',86400./1004., 1.,-5.,5.,-2.,2.,'K/day']
 	var_desc['STEND_CLUBB'] = ['dT/dt turbulence',86400./1004., 1. ,-2.,8.,-2.,8.,'K/day']
+	
+	
 
-
-	var_desc['OMEGA'] = ['OMEGA',-1., -1., -0.06,0.06,-0.06,0.06,'pa/s']
+	var_desc['OMEGA'] = ['Vertical Velocity',1., -1., -0.06,0.06,-0.06,0.06,'pa/s']
 	var_desc['DIV'] = ['Divergence',1., 100./86400., -0.0004,0.0004,-0.0004,0.0004,'s^-1']
 	var_desc['T'] = ['Temperature',1., 1., -10.,10.,-10.,10.,'K']
 	var_desc['Q'] = ['Specific Humidity',1000., 1000., 0.,20.,-1.,1.,'g/kg']
@@ -182,8 +185,8 @@ def vprof_set_regions():
 	#### Anna Locations ####
 
 	reg_names['Nino Wet'] = ['C. Pacific Nino Wet',-10,0.,160.,220]  # Core of nino precip signal
-#	reg_names['WP Dry']   = ['West Pac. Nino Dry.',0.,15.,110.,150]  # Core of W. Pacific signal
-#	reg_names['Conv U']   = ['Convergence Min',25,40.,150,200]       # Core of RWS convergence min.
+	reg_names['WP Dry']   = ['West Pac. Nino Dry.',0.,15.,110.,150]  # Core of W. Pacific signal
+	reg_names['Conv U']   = ['Convergence Min',25,40.,150,200]       # Core of RWS convergence min.
 
 
 	#1. positive precipitation anomalies -equatorial central Pacific : 160E-140W; 10S-EQ (Main tropical forcing)

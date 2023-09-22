@@ -15,7 +15,6 @@ import glob as gb
 import datetime as dt
 
 import matplotlib.pyplot as plt
-from matplotlib.cm import get_cmap
 from matplotlib import cm
 from matplotlib.dates import DayLocator, HourLocator, MonthLocator, DateFormatter
 
@@ -362,46 +361,48 @@ def lanczos_low_pass_weights(window, cutoff):
 
 def lanczos_low_pass(da_ts, window, cutoff, dim='time', opt='symm'):
     
-    wgts = lanczos_low_pass_weights(window, cutoff)
-    weight = xr.DataArray(wgts, dims=['window_dim'])
-    
-    if opt == 'symm':
-        # create symmetric front 
-        da_ts = da_ts.transpose('lat','lon','time')
-        da_front = (xr.DataArray(da_ts.loc[
-                                    dict(time=slice("%0.4i-01-01"%da_ts['time.year'][0],
-                                                    "%0.4i-12-31"%da_ts['time.year'][0]))].values,
-                                dims=['lat','lon','time'],
-                                coords=dict(lat=da_ts.lat.values,
-                                            lon=da_ts.lon.values,
-                                            time=da_ts.loc[
-                                                dict(time=slice("%0.4i-01-01"%da_ts['time.year'][0],
-                                                                "%0.4i-12-31"%da_ts['time.year'][0]))].time.values
-                                                                -dt.timedelta(days=365)))
-                   )
-        da_front = da_front.reindex(time=list(reversed(da_front.time.values)))
-        
-        # create symmetric end
-        da_end = (xr.DataArray(da_ts.loc[
-                                  dict(time=slice("%0.4i-01-01"%da_ts['time.year'][-1],
-                                                  "%0.4i-12-31"%da_ts['time.year'][-1]))].values,
-                                dims=['lat','lon','time'],
-                                coords=dict(lat=da_ts.lat.values,lon=da_ts.lon.values,
-                                            time=da_ts.loc[
-                                                dict(time=slice("%0.4i-01-01"%da_ts['time.year'][-1],
-                                                                "%0.4i-12-31"%da_ts['time.year'][-1]))].time.values
-                                                                +dt.timedelta(days=365)))
-                 )
-        da_end = da_end.reindex(time=list(reversed(da_end.time.values)))
-        
-        da_symm = xr.concat([da_front,da_ts,da_end],dim='time')
-        da_symm_filtered = da_symm.rolling({dim:window}, center=True).construct('window_dim').dot(weight)
-        da_ts_filtered = da_symm_filtered.sel(time=da_ts.time)
-        
-    else:
-        da_ts_filtered = da_ts.rolling({dim:window}, center=True).construct('window_dim').dot(weight)
-    
-    return da_ts_filtered
+	wgts = lanczos_low_pass_weights(window, cutoff)
+	weight = xr.DataArray(wgts, dims=['window_dim'])
+
+	print(dt.timedelta(days=365))
+
+	if opt == 'symm':
+		# create symmetric front 
+		da_ts = da_ts.transpose('lat','lon','time')
+		da_front = (xr.DataArray(da_ts.loc[
+									dict(time=slice("%0.4i-01-01"%da_ts['time.year'][0],
+													"%0.4i-12-31"%da_ts['time.year'][0]))].values,
+								dims=['lat','lon','time'],
+								coords=dict(lat=da_ts.lat.values,
+											lon=da_ts.lon.values,
+											time=da_ts.loc[
+												dict(time=slice("%0.4i-01-01"%da_ts['time.year'][0],
+																"%0.4i-12-31"%da_ts['time.year'][0]))].time.values
+																-dt.timedelta(days=365)))
+				   )
+		da_front = da_front.reindex(time=list(reversed(da_front.time.values)))
+
+		# create symmetric end
+		da_end = (xr.DataArray(da_ts.loc[
+								  dict(time=slice("%0.4i-01-01"%da_ts['time.year'][-1],
+												  "%0.4i-12-31"%da_ts['time.year'][-1]))].values,
+								dims=['lat','lon','time'],
+								coords=dict(lat=da_ts.lat.values,lon=da_ts.lon.values,
+											time=da_ts.loc[
+												dict(time=slice("%0.4i-01-01"%da_ts['time.year'][-1],
+																"%0.4i-12-31"%da_ts['time.year'][-1]))].time.values
+																+dt.timedelta(days=365)))
+				 )
+		da_end = da_end.reindex(time=list(reversed(da_end.time.values)))
+
+		da_symm = xr.concat([da_front,da_ts,da_end],dim='time')
+		da_symm_filtered = da_symm.rolling({dim:window}, center=True).construct('window_dim').dot(weight)
+		da_ts_filtered = da_symm_filtered.sel(time=da_ts.time)
+
+	else:
+		da_ts_filtered = da_ts.rolling({dim:window}, center=True).construct('window_dim').dot(weight)
+
+	return da_ts_filtered
     
 def lanczos_high_pass(da_ts, window, cutoff, dim='time'):
     
