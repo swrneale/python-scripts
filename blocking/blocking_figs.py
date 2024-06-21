@@ -19,7 +19,6 @@ import matplotlib.pyplot as mp
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-import geocat.viz as gv
 
 
 import importlib
@@ -176,18 +175,200 @@ def block_plot_1d (block_meta,ens_block_1d,bseason,pshade='1',fig_out=False):
     return
 
 
-def block_plot_2d():
 
-    fname = '-> block_plot_2d -> '
 
+
+
+
+
+
+
+
+
+
+###################################################################################################### 
+#  Plot 2D blocking %age for each longitude and for each ensemble set (which includes observations)
+######################################################################################################
+
+
+def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True):
+
+
+    from cartopy.util import add_cyclic_point
+    from matplotlib.colors import LinearSegmentedColormap, Normalize, BoundaryNorm
+    
+    fname = '-> block_plot_2d ->'
+
+
+    ens_names = list(block_meta.index)
+    nens = len(ens_names)
+    
+    # Createplot of a stereographic projection centered over the North Pole
+    projection = ccrs.NorthPolarStereo()
+
+    # Set up subplot paneling
+    ncols = 3
+    nrows,premain = divmod(nens, ncols)
+    nrows = nrows+1
+
+    figsize = (8*ncols,8*nrows)
+    
+    fig, ax0 = mp.subplots(nrows,ncols,subplot_kw={'projection': projection}, figsize=figsize,constrained_layout=True)
+
+    
+
+    # Flattedn and trikm aaxes if needed
+
+    
+    ax= ax0.flat
+    
+    
+
+    bcontours = [0,2,4,6,8,10,12,14,16,18,20,25,30]
+#    norm = Normalize(vmin=min(bcontours), vmax=max(bcontours))
+    norm = BoundaryNorm(boundaries=bcontours, ncolors=256)
+    
+    colors = ['white', 'cyan', 'cornflowerblue','blue','green','darkgreen', 'yellow','gold', 'orange', 'red', 'darkred','lightpink','hotpink','magenta']
+    cmapb = LinearSegmentedColormap.from_list('custom_colormap', colors, N=256)
+    
+    text_size_percentage = 2
+    text_size = ncols*100.*text_size_percentage / fig.get_size_inches()[0]
+  
+
+
+
+
+    # LOOP OVER ENSEMBLE SETS #
+    
+    for iens,ax in enumerate(ax):
+
+        if iens<=nens-1: # Active plots (ax)
+           
+            ens_name = ens_names[iens]
+            print(fname,'Plotting for ensemble',ens_name)
+            
+            ens_type = block_meta.loc[ens_name]['Ensemble Type']
+            ens_nruns = len(block_meta.loc[ens_name]['Run Name'])
+            ens_name = ens_names[iens]
+            
+    
+            # Do a deep copy as repeated invocation of this routine for fine turning messes the original data up if I don't.
+            da_iens = ens_block_2d[ens_name]
+            da_iens = 100.*da_iens # Scale to %age
+            
+            
+            # Set min/mean/max of each ensemble set
+            # Average plotting for now (ens_plot will control this in future).
+    
+            match(ens_plot):
+                case 'av':
+                    da_iens_ave = da_iens.mean(dim='name').squeeze()
+                case '0':
+                    da_iens_ave = da_iens.isel(name=0).squeeze()
+            
+            iens_lat = da_iens_ave.lat
+            iens_lon = da_iens_ave.lon
+    
+            # Lon wrapping grid point for plotting
+    
+            iens_ave_cyc, iens_lon_cyc = add_cyclic_point(da_iens_ave, iens_lon)
+                                                          
+            
+            # Have to recast as DataArrays - annoying.
+            
+            iens_lon_cyc = xr.DataArray(iens_lon_cyc,
+                                  dims='lon',
+                                  coords={'lon': iens_lon_cyc})
+            
+            iens_ave_cyc = xr.DataArray(iens_ave_cyc,
+                                  dims=('lat', 'lon'),
+                                  coords={'lat': iens_lat, 'lon': iens_lon_cyc})
+    
+      
+         
+            # Plot data with cyclic points including coasts, gridlines/labels and ens_name
+    
+            ax_all = ax.contourf(iens_lon_cyc,iens_lat, iens_ave_cyc, levels=bcontours,norm=norm,transform=ccrs.PlateCarree(),cmap=cmapb,extend='max')   
+    
+            ax.coastlines()
+            gl = ax.gridlines(color='C7',lw=1,ls=':',draw_labels=True,rotate_labels=False,ylocs=[40,60,80])
+            gl.xlabel_style = {'size': text_size*0.5}
+            gl.ylabel_style = {'size': text_size*0.5}
+    
+           
+            polarCentral_set_latlim((40,90),ax)
+            
+            ax.set_title(ens_name, fontsize=text_size)
+
+        if iens>nens-1: # Inactivate plots
+            fig.delaxes(ax)
+    
+    # Specify the position of the colorbar
+
+    fig.suptitle('Blocking Frequency (%) - '+ block_season, fontsize=text_size,ha='center',va='bottom')
+    
+#    fig.subplots_adjust(right=0.93,wspace=0.2, hspace=5)
+#    cbar_ax = fig.add_axes([0.95, 0.27, 0.03, 0.36])
+
+#    cbar_ax.set_title('%',fontsize=text_size)
+#    cbar_ax.tick_params(labelsize=text_size*0.5)
+
+
+    
+    cbar = fig.colorbar(ax_all, ax=ax0[:, ncols-1], ticks=bcontours,location='right', shrink=0.25)
+
+#    fig.tight_layout()
+    
     
     tstart = time.time()
-    
+
     return
 
-def block_plot_1d_pdf():
+
+
+
+
+
+###################################################################################################### 
+#  Plot PDF of blocking strength for different longitudinal sectors
+######################################################################################################
+
+
+
+def block_plot_1d_pdf(block_meta,ens_block_2d,block_season,fig_out=True):
+
+    
     
     return
 
 def jet_var_plot():
     return
+
+
+'''
+ Small figure functions
+'''
+
+
+# Add lon labels to stereographic plots.
+
+def polarCentral_set_latlim(lat_lims, ax):
+
+    import matplotlib.path as mpath
+    
+    ax.set_extent([-180, 180, lat_lims[0], lat_lims[1]], ccrs.PlateCarree())
+    theta = np.linspace(0, 2*np.pi, 100)
+    center, radius = [0.5, 0.5], 0.5
+    verts = np.vstack([np.sin(theta), np.cos(theta)]).T
+    circle = mpath.Path(verts * radius + center)
+    ax.set_boundary(circle, transform=ax.transAxes)
+    
+
+
+
+
+
+
+
+
+
