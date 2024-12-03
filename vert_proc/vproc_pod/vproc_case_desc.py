@@ -84,6 +84,8 @@ def mdtf_case_list():
     rl['82b'] = ['b.e23_alpha16g.BLT1850.ne30_t232.082b']
     rl['83b'] = ['b.e23_alpha16g.BLT1850.ne30_t232.083b']
     rl['90b'] = ['b.e23_alpha16g.BLT1850.ne30_t232.090b']
+    rl['92'] = ['b.e23_alpha17f.BLT1850.ne30_t232.092']
+    rl['98'] = ['b.e23_alpha17f.BLT1850.ne30_t232.098']
 
     
 #########################################

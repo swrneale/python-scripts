@@ -64,11 +64,6 @@ def cam_revert_list():
     rl['L48.BL10.zm2']=['f.e21.FWscHIST.ne30_L48_BL10_v3_tag20201111_zm2.001']
     
     
-    rl['L32'] = ['f.e21.FWscHIST.ne30_L32_cam6_3_019_plus_CESM2.2.001.hf']
-    rl['L48'] = ['f.e21.FWscHIST.ne30_L48_cam6_3_019_plus_CESM2.2.001.hf']
-    rl['L58'] = ['f.e21.FWscHIST.ne30_L48_BL10_cam6_3_019_plus_CESM2.2.001.hf']
-    rl['L58zm2'] = ['f.e21.FWscHIST.ne30_L48_BL10_cam6_3_019_plus_CESM2.2.001_zm2.hf']
-    
     rl['L58bline'] = ['f.e21.FWscHIST.ne30_L48_BL10_cam6_3_041_control.hf.001']
     
    
@@ -91,8 +86,12 @@ def cam_revert_list():
     rl['CE3.82b'] = ['b.e23_alpha16g.BLT1850.ne30_t232.082b']  # Cold branch + x1 new gustiness
     rl['CE3.83b'] = ['b.e23_alpha16g.BLT1850.ne30_t232.083b']  # Cold branch + x1 new gustiness
     rl['CE3.90b'] = ['b.e23_alpha16g.BLT1850.ne30_t232.090b']  # 82b + 0.25*zm_pblh
-    
 
+
+    rl['CE3.112'] =  ['b.e30_alpha03d.BLT1850.ne30_t232_wgx3.112']
+    rl['CE3.104'] = ['b.e30_beta02.BLT1850.ne30_t232.104']
+    rl['CE3.98'] = ['b.e23_alpha17f.BLT1850.ne30_t232.098']
+    rl['CE3.93'] =  ['b.e23_alpha17f.BLT1850.ne30_t232.093']
 
 
     

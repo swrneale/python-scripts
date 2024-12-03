@@ -271,8 +271,8 @@ def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True
     
             # Lon wrapping grid point for plotting
     
-            iens_ave_cyc, iens_lon_cyc = add_cyclic_point(da_iens_ave, iens_lon)
-                                                          
+#            iens_ave_cyc, iens_lon_cyc = add_cyclic_point(da_iens_ave, iens_lon)
+            iens_ave_cyc, iens_lon_cyc = da_iens_ave,iens_lon                                         
             
             # Have to recast as DataArrays - annoying.
             

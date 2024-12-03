@@ -7,7 +7,7 @@
 
 '''
     block_data - Reads in and processes data beofre sending back to be operated on
-    block_freq1d - Calculates 1D blocking frequencies (longitude) - D'Andrea et al. (1998)
+    block_freq1d - Calculates 1D blocking frequencies (longitude) - D'Andrea et al. ƒ(1998)
     block_freq2d - Calculates 2D blocking frequencies (latitude/longitude) - 
 
 '''
@@ -41,9 +41,9 @@ def ens_setup(ens_name,ens_mem_num,ystart,yend):
 
 
 
-###################################
-# Set ensemble/single/obs case information 
-###################################
+############################################
+# Set ensemble/single/obs case information #
+############################################
 
 # TO DO 
 # - Functionaity to read in existing, pre calculated datasets 
@@ -105,8 +105,6 @@ def find_ens_info(ens_names,mem_num,ystart,yend):
                 file_templates = [(dir_ens0+this_run+'/tseries/'+this_run+'_dmeans_ts_VAR_TBD.nc') for this_run in run_names]
                 
             case ens_name if ens_name in ['E3SMv2','EAMv2','CAM6']:
-
-                print
                 
                 ens_type = 'model'
 
@@ -383,7 +381,7 @@ def block_z500_freq(block_meta,ens_ds,bseason,block_diag=None,file_opts='x'):
             z500_blats_s = ens_z500.sel(lat=blats_sg)
     
 
-            print(fname,' Calculating ',case,'blocking statistics for ',ens_name)
+            print(fname,' Calculating blocking statistics for ',ens_name)
 
             match(block_diag):
 

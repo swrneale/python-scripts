@@ -23,7 +23,7 @@ import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
-import matplotlib.patches as mpatches
+import matplotlib.patches as mpatchesf
 
 
 #import geocat.comp as gcat
@@ -518,6 +518,8 @@ def get_files_tseries(case_name,case_type,var_plot,lats_in,p_levs,years) :
                 dir_glade = dir_rda+rda_cat+'/'
                 files_glade  = np.array([dir_rda+rda_cat+"/e5.moda.an.pl/%03d/e5.moda.an.pl.128_%s.ll025%s.%03d010100_%03d120100.nc"%(y,var_fname,var_ftype,y,y) for y in range(yr0,yr1+1)])
 
+                print(files_glade)
+                
                 lat_rev = True
                 lcoord_names = True
 
@@ -910,7 +912,7 @@ def get_files_climo(case_name,case_type,var_plot,lats_in,p_levs,years) :
     else:
         var_cam = var_plot
     
-    var_anal_map  = {'T': 'ta',   'Q':'hus' , 'Z3': 'hgt',   'U':'ua', 'V':'va',  'OMEGA':'omega'}
+    var_anal_map  = {'T': 'ta',   'Q':'hus' , 'Z3': 'hgt',   'U':'ua', 'V':'va',  'OMEGA':'omega', }
     
     try:
         var_vname = var_anal_map[var_cam]
@@ -1066,6 +1068,7 @@ def derive_nino_vars(lclimo,var_read,var_plot,p_levs,files_ptr,pfiles_ptr,case_t
     # Derived variable
 
     if var_plot == 'DIV':
+        print('DIV-enso')
         var_in_seas = div_sign_factor*var_in_seas.differentiate("lev")      
         var_in_nino = div_sign_factor*var_in_nino.differentiate("lev")     
         var_in_nina = div_sign_factor*var_in_nina.differentiate("lev")     

@@ -21,7 +21,7 @@ from scipy.ndimage.filters import gaussian_filter
 import vproc_setup as mysetup
 
 dir_proot = '//glade/u/home/rneale/python/python-figs/vert_proc/'
-fig_dpi = 80
+fig_dpi = 150
 
 ''' 
     #########################################################
@@ -133,8 +133,9 @@ def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr):
     
     # Find divergence from OMEGA and plot
     
-        if var_plt == 'DIV' and case_type != 'renanl':
-            da_in = -da_in.differentiate("lev",edge_order=2)
+#        if var_plt == 'DIV' and case_type != 'reanal':
+#            print('DIV-plot')
+#            da_in = -da_in.differentiate("lev",edge_order=2)
         
     
         for imm,mname in enumerate(mnames):
@@ -146,16 +147,12 @@ def plot_div_pres(case_type,case,var_plt,varp_lev,da_in_ps,fls_ptr):
             if mname == 'Maximum':
                 da_plot = da_in.idxmax(dim='lev') 	
                 da_lev_val = da_in.max(dim='lev')
-                figb, axb = mp.subplots(figsize=(9, 9))
-                da_plot = da_plot.where(da_lev_val > 2.e-6)
-                da_plot_ts = da_plot.to_series()
-                da_plot_ts.plot.hist(ax=axb)
-                figb.show()
+                da_plot = da_plot.where(da_lev_val > 1.5e-4)
 
             if mname == 'Minimum':
                 da_plot = da_in.idxmin(dim='lev')
                 da_lev_val = da_in.min(dim='lev')
-                da_plot = da_plot.where(da_lev_val < -2.e-6)
+                da_plot = da_plot.where(da_lev_val < -1.5e-4)
 
 # Normalize range for shading. Has to scale by std dev as climo. can be dominated by high values over topo.
             
@@ -291,19 +288,20 @@ def scat_plot(case_type,case,var_cam,var2_cam,da_in_all,da2_in_all,da_in_ps,reg_
     
         print('  -- Plotting')
         
-#		xrange = [-0.04,0.12]
-#		yrange = [-1e-4,8e-4]
+        yrange = [-0.03,0.13]
+        xrange = [-1e-4,8e-4]
     
-    #	xrange = [-0.12,0.04]
-#		yrange = [-8e-4,1e-4]
+#    	yrange = [-0.12,0.04]
+#		xrange = [-8e-4,1e-4]
+
         
         slevels = [0.02,0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     
-#		sclip = ((xrange[0],xrange[1]),(yrange[0],yrange[1])) 
+#        sclip = ((yrange[0],yrange[1]),(xrange[0],xrange[1])) 
     
         mp.figure(figsize=(15,8))
         
-#		axs = sb.kdeplot(var_df,x='xvar',y='yvar',hue='Region',levels=slevels,clip=sclip,common_norm=True)
+#        axs = sb.kdeplot(var_df,x='xvar',y='yvar',hue='Region',levels=slevels,clip=sclip,common_norm=True)
         axs = sb.kdeplot(var_df,x='xvar',y='yvar',hue='Region',levels=slevels,common_norm=True)
 
 #	axs = sb.jointplot(var_df, kind="kde",x='xvar',y='yvar',hue='Region',levels=slevels,clip=sclip,common_norm=True)
@@ -324,10 +322,10 @@ def scat_plot(case_type,case,var_cam,var2_cam,da_in_all,da2_in_all,da_in_ps,reg_
     
         mp.xlabel('Maximum '+var1_lname+' ('+var1_units+')',fontsize=20)
         mp.ticklabel_format(axis='y', style='sci', scilimits=(1,4))
-#		mp.xlim(xrange)
+        mp.xlim(xrange)
     
         mp.ylabel('Maximum '+var2_lname+' ('+var2_units+')',fontsize=20)
-#		mp.ylim(yrange)
+        mp.ylim(yrange)
     
         mp.suptitle(case+' - '+tav_names[itav],fontsize=20)
         mp.savefig(dir_proot+case+'_'+tav_names[itav]+'_min_scatter.png', dpi=fig_dpi)
@@ -601,7 +599,7 @@ def vprof_clim_nino(vproc_cases,p_levs,var_cam,reg_df,var_df,case_type,case_desc
                     
     fign, axn = mp.subplots(nreg,3,figsize=(26, 26))  
 
-    lrange_plot = True
+    lrange_plot = False
 
     for icase,case in enumerate(case_names):
 

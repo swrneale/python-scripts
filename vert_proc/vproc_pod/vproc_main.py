@@ -69,7 +69,7 @@ def main():
     
     ''''' Years for the analysis '''''
     
-    years_data = (1979,2019) # Year range of history files to read AND either 'climo' one file or 'tseries' many files
+    years_data = (1979,2005) # Year range of history files to read AND either 'climo' one file or 'tseries' many files
     
     
     ''' REGIONAL SPECS (LAT/LON/LEV) '''
@@ -86,9 +86,9 @@ def main():
     var_plot_scat = 'OMEGA'
     
     ldiv = False  # Calculate divergence from OMEGA if var_cam = OMEGA
-    l_psst_nino = True
+    l_psst_nino = False
     l_pminmax_plev = False # Plot lat lon plot of climo/nino/nina ma/min levels of occurrence.
-    l_pscatt_2d = False # Scatter plot of 2 2D fields.
+    l_pscatt_2d = True # Scatter plot of 2 2D fields.
     l_vprof = False
     
     ''''' Named Regions '''''

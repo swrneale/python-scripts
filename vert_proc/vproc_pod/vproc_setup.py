@@ -12,7 +12,7 @@ def vprof_setup() :
 
     ''''' Which case to use???? '''''
 
-    case_types = ['lens'] # 'revert', 'cesm3_dev',  'reanal' or 'lens'
+    case_types = ['reanal'] # 'revert', 'cesm3_dev',  'reanal' or 'lens'
     
     print('+++++++++++  CASE TYPES ++++++++++++')
     print(*case_types)
@@ -50,7 +50,7 @@ def vprof_setup() :
     
         pref_out = 'cesm3_dev_b'
         
-        case_desc = ['82b','83b','90b','78b','64','54']
+        case_desc = ['98','92','82b','83b','90b','78b','64']
 #        case_desc = ['82b']
         
         nrevert = len(case_desc)
@@ -61,35 +61,46 @@ def vprof_setup() :
     
     if 'lens' in case_types:
     
-        pref_out = 'lense2_divlev_ensplot_members'  
+        pref_out = 'lense2_divlev_all_models'  
         
 #        lens_set = 'lens1' ; lens_suff = 'CE1' # lens1, lens2, c6_amip
-#        lens_set = 'lens2' ; lens_suff = 'CE2'
-        lens_set = 'lense2' ; lens_suff = 'E3SM2'
+        lens_set = 'lens2' ; lens_suff = 'CE2'
+#        lens_set = 'lense2' ; lens_suff = 'E3SM2'
         
         #	lens_set = 'c6_amip' ; lens_suff = 'C6'
         
-        nens = 20
+        nens = 2
 
         
         
         ####
         
-        case_desc = [lens_suff+'.E%01d'%(itt) for itt in range(1,nens+1)]
-        case_type  = [lens_set]*nens
+#        case_desc = [lens_suff+'.E%01d'%(itt) for itt in range(1,nens+1)]
+#        case_type  = [lens_set]*nens
+
+        # One from each model?        
+
+       
+        case_desc = ['E3SM2.E1','CE2.E1','CE1.E1']
+        case_type  = ['lense2','lens2','lens1']
+
+        
+
+
+
 
 
     ''' ###### REANAL+ABOVE MODEL SIMS ######## '''
 
     if 'reanal' in case_types:
     
-        pref_out = 'reanal_all_ams'
+        pref_out = 'reanal_all_dtdt'
         
-        case_reanal = ['ERA5','ERAI','CFSR','MERRA2','JRA25'] 
-        type_reanal = ['reanal','reanal','reanal','reanal','reanal']
+#        case_reanal = ['ERA5','ERAI','CFSR','MERRA2','JRA25'] 
+#        type_reanal = ['reanal','reanal','reanal','reanal','reanal']
 
-#        case_reanal = ['CFSR','ERA5']
-#        type_reanal = ['reanal','reanal']
+        case_reanal = ['ERA5']
+        type_reanal = ['reanal']
 
     reanal_climo = True # Grab climo. values for mean, Nino and nina events for reanalysis only
 
