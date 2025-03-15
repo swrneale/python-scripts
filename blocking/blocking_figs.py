@@ -37,7 +37,7 @@ dir_fig = '/glade/u/home/rneale/python/python-figs/blocking/'
 
 
 
-def block_plot_1d (block_meta,ens_block_1d,bseason,pshade='1',fig_out=False):
+def block_plot_1d (block_meta,ens_block_1d,bseason,pshade='mm',fig_out=False):
 
     fname = '-> block_plot_1d -> '
 

@@ -93,8 +93,13 @@ def cam_revert_list():
     rl['CE3.98'] = ['b.e23_alpha17f.BLT1850.ne30_t232.098']
     rl['CE3.93'] =  ['b.e23_alpha17f.BLT1850.ne30_t232.093']
 
+    rl['C7d.dcs.600'] =  ['f.e30_beta04.FLTHIST.ne30.dcs600.001/']
+    rl['C7d.dp1.0.05'] =  ['f.e30_beta04.FLTHIST.ne30.dp1_0.05.001']
+    rl['C7d.hscale.0.75'] =  ['f.e30_beta04.FLTHIST.ne30.hscale_0.75.001']
+    rl['C7d.ke.2.5e-6'] =  ['f.e30_beta04.FLTHIST.ne30.ke_2.5.001']
+    rl['C7d.c0ocn.0.045'] =  ['f.e30_beta04.FLTHIST.ne30.c0_ocn_0.045.001']
 
-    
+
 # Pass through for obs.
 
     rl['TRMM'] = ['TRMM']

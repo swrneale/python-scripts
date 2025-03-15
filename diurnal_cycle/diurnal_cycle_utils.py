@@ -1,3 +1,42 @@
+import xarray as xr
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Open CESM file (replace with actual file name)
+ds = xr.open_dataset("your_file.nc")
+
+# Choose variable (change 'PRECT' to your target variable)
+var_name = "PRECT"
+data = ds[var_name]
+
+# Convert time coordinate to hour-of-day
+hour_of_day = data['time'].dt.hour
+
+# Compute mean diurnal cycle
+diurnal_cycle = data.groupby(hour_of_day).mean(dim="time")
+
+# Apply FFT to get harmonics
+fft_result = np.fft.fft(diurnal_cycle)
+
+# Compute frequencies (0-23 hours, since we have 24 hours in a diurnal cycle)
+freqs = np.fft.fftfreq(len(diurnal_cycle), d=1)  # d=1 since it's hourly data
+
+# Compute amplitude and phase of harmonics
+amplitude = np.abs(fft_result)
+phase = np.angle(fft_result)
+
+# Plot Harmonic Amplitudes
+plt.figure(figsize=(8, 5))
+plt.stem(freqs[:12], amplitude[:12], basefmt=" ")
+plt.xlabel("Harmonic Number")
+plt.ylabel("Amplitude")
+plt.title(f"Harmonics of {var_name} Diurnal Cycle")
+plt.grid()
+
+
+
+
+
 '''
 	BLOCKING UTILIY ROUTINES
 '''
@@ -6,9 +45,8 @@
 
 
 '''
-    block_data - Reads in and processes data beofre sending back to be operated on
-    block_freq1d - Calculates 1D blocking frequencies (longitude) - D'Andrea et al. ƒ(1998)
-    block_freq2d - Calculates 2D blocking frequencies (latitude/longitude) - 
+    dc_data - Reads in and processes data beofre sending back to be operated on
+    dc_freq1d - Calculates 1D blocking frequencies (longitude) - D'Andrea et al. ƒ(1998)
 
 '''
 
@@ -41,6 +79,8 @@ def ens_setup(ens_name,ens_mem_num,ystart,yend):
 
 
 
+
+
 ############################################
 # Set ensemble/single/obs case information #
 ############################################
@@ -49,15 +89,15 @@ def ens_setup(ens_name,ens_mem_num,ystart,yend):
 # - Functionaity to read in existing, pre calculated datasets 
 # - If just one ensemble mem print out single case name.
 
-def find_ens_info(ens_names,mem_num,ystart,yend):
-
+def find_data_info(data_desc,data_name,ystart,yend):
     
+
     import lens_simulations as sim_names
     importlib.reload(sim_names)
 
-    obs_sources = ['ERA5','MERRA','ERAI']
+    obs_sources = ['ERA5','TRMM','','GPCP','CPC']
 
-    fname = '-> find_ens_info -> '
+    fname = '-> find_data_info -> '
     
     all_ens_info = {}    
 
@@ -65,7 +105,6 @@ def find_ens_info(ens_names,mem_num,ystart,yend):
 # Loop ensemble sets (ensembles/obs/singlecases)
     
     for iens,ens_name in enumerate(ens_names):
-
         
         
         if ens_name in ['CESM1','CESM2','E3SMv1','E3SMv2','EAMv2','CAM6']:

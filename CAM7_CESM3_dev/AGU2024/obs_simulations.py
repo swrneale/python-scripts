@@ -96,7 +96,21 @@ def cam_revert_list():
 # VRES AND HRES CAM7 and CAM5 sensitivity
     rl['CAM7-L32'] =  ['f.e30_cam6_4_036.FLTHIST.ne30_L32.001']
     rl['CAM7-L58'] =  ['f.e30_cam6_4_036.FLTHIST.ne30_L58.001']
-    rl['CAM7-L93'] =  ['f.e30_cam6_4_036.FLTHIST.ne30_L93.001']
+    rl['CAM7-L93'] =  ['f.e30_cam6_4_036.FMTHIST.ne30_L93.001']
+    rl['CAM7-L32-ne120'] =  ['f.e30_cam6_4_036.FLTHIST.ne120_L32.001']
+    rl['CAM7-L58-ne120'] =  ['f.e30_cam6_4_036.FLTHIST.ne120_L58.001']
+    rl['CAM7-L93-ne120'] =  ['f.e30_cam6_4_036.FMTHIST.ne120_L93.001']
+    rl['CAM5-L32'] =  ['f.e30_cam6_4_036.FMTHIST.ne30_L32.cam5.001']
+
+
+# ZMKE simulations
+    rl['CAM7-KE0'] =  ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.001']
+    rl['CAM7-KE'] = ['f.cam6_3_161.FLTHIST_ne30.ke.001']
+#    rl['CAM7-KE'] =  ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.002']
+#    rl['CAM7-KE-TKE'] =  ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.003']
+    rl['CAM7-LEntr'] =  ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.004']
+    rl['CAM7-Par2K'] =  ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.005']
+    
     
 # Pass through for obs.
 
