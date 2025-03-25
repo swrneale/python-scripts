@@ -81,7 +81,7 @@ def scam_vars_grab():
 #    vname = 'DCQ'   ; vscale = 1000.*86400. ; units2d='g/kg/day' ; cmin = -8 ; cmax = 8. ; cmap = 'RdBu_r'
 #    vname = 'DTCOND' ; vscale = 86400. ; units2d='K/day' ; cmin = -15 ; cmax = 15. ; cmap = 'RdBu_r'
     
-    vname = 'ZMMU' ; vscale = 3600. ; units2d='kg/m^2/hr' ; cmin = -10. ; cmax = 50. ; cmap = 'PuBuGn'
+#    vname = 'ZMMU' ; vscale = 3600. ; units2d='kg/m^2/hr' ; cmin = -10. ; cmax = 50. ; cmap = 'PuBuGn'
 #    vname = 'ZMMD' ; vscale = 3600. ; units2d='kg/m^2/hr' ; cmin = -8 ; cmax = 4. ; cmap = 'PuBuGn_r'
 #    vname = 'WINCLD' ; vscale = 1. ; units2d='m/s' ; cmin = -20; cmax = 20; cmap = 'RdBu_r'
 #    vname = 'KEPAR'  ; vscale = 1. ; units2d='W/m2' ; cmin = -20; cmax = 80; cmap = 'RdBu_r'
@@ -98,11 +98,11 @@ def scam_vars_grab():
     #vname1d = 'U10' ; vscale1d = 1. ;  units1d='m/s' ; pmin = 0. ; pmax= 10.
     #vname1d = 'TAUX' ; vscale1d = 1. ;  units1d='kg/m^2/s' ; pmin = -0.2 ; pmax= 0.0
     #vname1d = 'ZBOT' ; vscale1d = 1. ;  units1d='m' ; pmin = 0. ; pmax= 150.
-    vname1d = 'PRECT' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0.01 ; pmax= 60. ; ovar1d = 'Prec' ; ovscale1d = 86400. 
+#    vname1d = 'PRECT' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0.01 ; pmax= 60. ; ovar1d = 'Prec' ; ovscale1d = 86400. 
      
     
 #    vname1d = 'PRECZ' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
-#    vname1d = 'PRECC' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
+    vname1d = 'PRECC' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
 #    vname1d = 'PRECL' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
 #    vname1d = 'PRECT' ; vscale1d = 1. ;  units1d='J/kg' ; pmin = 0. ; pmax= 1000.
 #    vname1d = 'CAPE' ; vscale1d = 1. ;  units1d='J/kg' ; pmin = 0. ; pmax= 1000.    
