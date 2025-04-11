@@ -61,20 +61,71 @@ import time
 
 
 # Output directory for output files (and to read them in).
-fout_dir = '/glade/u/home/rneale/python/python-netcdf/blocking/'
+fout_dir = '/glade/u/home/rneale/python/python-netcdf/diurnal_cycle/'
 
 
 
 
-def ens_setup(ens_name,ens_mem_num,ystart,yend):
 
-# Construct and display Settings
 
-    ens_info = find_ens_info(ens_name,ens_mem_num,ystart,yend)  
-   
+############################################
+#           CASE(S) SETUP                  #
+############################################
+
+def case_setup (case_names,case_ystart,case_yend):
+
+
+    cesm_pref_names = ['f40','f.','b.']
+    dir_cesm_all = ['/glade/derecho/scratch/rneale/archive/']
+
+    for icase,case_name in enumerate(case_names):
     
+        match (case_name):
+            case ('TRMM'):
+                case_type = 'obs'
+                dir_case0 = '/glade/campaign/cgd/amp/rneale/data/TRMM/3hrly/0.25deg/'
+                
+            case ('GPCP'):
+                case_type = 'obs'
+                
+            case (any(sub in case_names for sub in cesm_pref_names)):    # CAM/CESM cases
+                case_type = 'cesm'
+                # Try to see if common directory locations exsit
+                dir_case0 = None 
+                for dir_cam in dir_cesm_all:
+                    if (os.path.exists(dir_cam+case_name)): dir_case0 = dir_cam+case_name
+                if dir_case = None: 'CESM/CAM Case Not found in a Common Location...')
+                        
+                
 
-    return ens_info
+                
+
+    # Conmstruct meta datafarme
+    
+     all_case_info[ens_name] = [case_names,ystart[iens],yend[iens],file_templates]  
+
+    
+#    pprint.pprint(all_ens_info)
+
+    df_info = pd.DataFrame.from_dict(all_case_info, orient='index',columns=['Case Name','Start Year','End Year','Run Name','Run File'])
+#    df_info = pd.DataFrame(data=all_ens_info)
+    display(df_info)
+    
+    
+    return case_meta
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -85,9 +136,6 @@ def ens_setup(ens_name,ens_mem_num,ystart,yend):
 # Set ensemble/single/obs case information #
 ############################################
 
-# TO DO 
-# - Functionaity to read in existing, pre calculated datasets 
-# - If just one ensemble mem print out single case name.
 
 def find_data_info(data_desc,data_name,ystart,yend):
     
