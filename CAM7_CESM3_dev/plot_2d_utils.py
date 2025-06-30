@@ -6,10 +6,11 @@ def get_indexes(month_or_season):
     }
     
     season_mapping = {
-        'djf': [12, 1, 2], 'mam': [3, 4, 5], 'jja': [6, 7, 8], 'son': [9, 10, 11]
+        'djf': [12, 1, 2], 'mam': [3, 4, 5], 'jja': [6, 7, 8], 'son': [9, 10, 11], 'ann': [1,2,3,4,5,6,7,8,9,10,11,12]
     }
     
     month_or_season = month_or_season.lower()
+
     
     if month_or_season in month_mapping:
         return [month_mapping[month_or_season]]

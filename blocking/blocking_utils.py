@@ -155,7 +155,7 @@ def find_ens_info(ens_names,mem_num,ystart,yend):
         all_ens_info[ens_name] = [ens_type,mem_num[iens],ystart[iens],yend[iens],run_names,file_templates]  
 
     
-#    pprint.pprint(all_ens_info)
+    pprint.pprint(all_ens_info)
 
     df_info = pd.DataFrame.from_dict(all_ens_info, orient='index',columns=['Ensemble Type','Ensemble Size','Start Year','End Year','Run Name','Run File'])
 #    df_info = pd.DataFrame(data=all_ens_info)

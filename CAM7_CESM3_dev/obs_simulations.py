@@ -93,23 +93,65 @@ def cam_revert_list():
     rl['CE3.98'] = ['b.e23_alpha17f.BLT1850.ne30_t232.098']
     rl['CE3.93'] =  ['b.e23_alpha17f.BLT1850.ne30_t232.093']
 
-    rl['C7d.dcs.600'] =  ['f.e30_beta04.FLTHIST.ne30.dcs600.001/']
+    rl['CE3.147'] =  ['b.e30_alpha06b.B1850C_LTso.ne30_t232_wgx3.147']
+    rl['CE3.150'] =  ['b.e30_alpha06b.B1850C_LTso.ne30_t232_wgx3.150']
+    rl['CE3.153'] =  ['b.e30_alpha06b.B1850C_LTso.ne30_t232_wgx3.153']
+    rl['CE3.154'] =  ['b.e30_alpha06b.B1850C_LTso.ne30_t232_wgx3.154']
+
+    rl['CE3.155'] =  ['b.e30_alpha06e.B1850C_LTso.ne30_t232_wgx3.155']    
+    rl['CE3.156'] =  ['b.e30_alpha06e.B1850C_LTso.ne30_t232_wgx3.156']    
+    rl['CE3.160'] =  ['b.e30_alpha06e.B1850C_LTso.ne30_t232_wgx3.160']  
+    rl['CE3.162'] =  ['b.e30_alpha06e.B1850C_LTso.ne30_t232_wgx3.162']
+    rl['CE3.163'] =  ['b.e30_alpha06e.B1850C_LTso.ne30_t232_wgx3.163']    
+
+    rl['CE3.164'] =  ['b.e30_beta06.B1850C_LTso.ne30_t232_wgx3.164']    
+    rl['CE3.165'] =  ['b.e30_beta06.B1850C_LTso.ne30_t232_wgx3.165']    
+    rl['CE3.170'] =  ['b.e30_beta06.B1850C_LTso.ne30_t232_wgx3.170']  
+    rl['CE3.171'] =  ['b.e30_beta06.B1850C_LTso.ne30_t232_wgx3.171']
+
+
+    rl['C7d.dcs.600'] =  ['f.e30_beta04.FLTHIST.ne30.dcs600.001']
     rl['C7d.dp1.0.05'] =  ['f.e30_beta04.FLTHIST.ne30.dp1_0.05.001']
     rl['C7d.hscale.0.75'] =  ['f.e30_beta04.FLTHIST.ne30.hscale_0.75.001']
     rl['C7d.ke.2.5e-6'] =  ['f.e30_beta04.FLTHIST.ne30.ke_2.5.001']
     rl['C7d.c0ocn.0.045'] =  ['f.e30_beta04.FLTHIST.ne30.c0_ocn_0.045.001']
 
+    rl['bline_rough'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.baseline_roughphis_SGH_grlnd28k.001']
+    rl['lwdscale'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.lwdownscale_roughphis_SGH_grlnd28k.001']
+    rl['tlapse_98'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.Tlapse0.0098_roughphis_SGH_grlnd28k.001']
+    rl['tlapse_4'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.Tlapse0.004_roughphis_SGH_grlnd28k.001']
+    rl['rainsnow'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.rainsnow_roughphis_SGH_grlnd28k.001']
+    rl['bforest'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.borealforest_roughphis_SGH_grlnd28k.001']
 
+
+# Surface bulk flux sensitivity runs.
+    
+    rl['eC7'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_dev.002'] # Early CAM7 control
+    rl['lhf'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.lhf_roughphis_SGH_grlnd28k.001']
+    rl['flux_all_T2m'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.flux_all_T2m_roughphis_SGH_grlnd28k.001']
+    rl['flux_all_Tsave'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.flux_all_Tsave_roughphis_SGH_grlnd28k.001']
+    rl['G&G'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.baseline156_qsat.001']
+    rl['ssq_T2m'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.ssq_T2m_roughphis_SGH_grlnd28k.001']
+    rl['UA_flux'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.ocnflx2_roughphis_SGH_grlnd28k.001']
+        
+    
+    
 # Pass through for obs.
 
+    rl['HadISST'] = ['HadISST']
     rl['TRMM'] = ['TRMM']
     rl['GPCP'] = ['GPCP']
     rl['ERAI'] = ['ERAI']
     rl['ERS'] = ['ERS']
     rl['MERRA'] = ['MERRA']
+    rl['JRA25'] = ['JRA25']
+    rl['LARYEA'] = ['LARYEA']
+    rl['ERS'] = ['ERS']
+    rl['WHOI'] = ['WHOI']
     
     
     
 # Data frame
     rl_df = pd.DataFrame.from_dict(rl, orient='index',columns=['run name'])
+#    display(rl_df)
     return rl_df

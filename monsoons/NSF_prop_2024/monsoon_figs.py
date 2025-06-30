@@ -105,6 +105,11 @@ def plot_cross_section(ds, var_1d, var_2d, lat_points, lon_points):
         lat_points, lon_points : list or array
             Lat/lon coordinates defining the path
     """
+
+    # Contour levels
+    levels = [k for k in range(-5,6)]
+    print(levels)
+    
     # Get levs, assume same for all grid points
     levs = ds['lev'].values
 
@@ -134,7 +139,7 @@ def plot_cross_section(ds, var_1d, var_2d, lat_points, lon_points):
     # Plot
     mp.figure(figsize=(15, 9))
  
-    cs = mp.contourf(distances, levs, var_interp, levels=30, cmap='bwr')
+    cs = mp.contourf(distances, levs, var_interp, levels=levels, cmap='bwr')
     
     mp.gca().invert_yaxis()
     mp.colorbar(cs, label=var_2d)
@@ -142,5 +147,8 @@ def plot_cross_section(ds, var_1d, var_2d, lat_points, lon_points):
     mp.ylabel('Height (pressure)')
     mp.title(f'{var_2d.capitalize()} Cross-Section')
     mp.grid(True)
-    mp.show()
+
+    mp.savefig(var_2d+'_xsection.png', dpi=120)  
+    
+
 

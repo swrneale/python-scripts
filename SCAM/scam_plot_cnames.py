@@ -8,9 +8,9 @@ def scam_cases_grab():
 
 
 
-    iop_case = 'togaII'
+#    iop_case = 'togaII'
 #    iop_case = 'gateIII' 
-#    iop_case = 'arm95' 
+    iop_case = 'arm95' 
 #    iop_case = 'arm97'
 
     

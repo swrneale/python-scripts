@@ -1,41 +1,16 @@
 import xarray as xr
 import numpy as np
+
 import matplotlib.pyplot as plt
 
-# Open CESM file (replace with actual file name)
-ds = xr.open_dataset("your_file.nc")
 
-# Choose variable (change 'PRECT' to your target variable)
-var_name = "PRECT"
-data = ds[var_name]
-
-# Convert time coordinate to hour-of-day
-hour_of_day = data['time'].dt.hour
-
-# Compute mean diurnal cycle
-diurnal_cycle = data.groupby(hour_of_day).mean(dim="time")
-
-# Apply FFT to get harmonics
-fft_result = np.fft.fft(diurnal_cycle)
-
-# Compute frequencies (0-23 hours, since we have 24 hours in a diurnal cycle)
-freqs = np.fft.fftfreq(len(diurnal_cycle), d=1)  # d=1 since it's hourly data
-
-# Compute amplitude and phase of harmonics
-amplitude = np.abs(fft_result)
-phase = np.angle(fft_result)
-
-# Plot Harmonic Amplitudes
-plt.figure(figsize=(8, 5))
-plt.stem(freqs[:12], amplitude[:12], basefmt=" ")
-plt.xlabel("Harmonic Number")
-plt.ylabel("Amplitude")
-plt.title(f"Harmonics of {var_name} Diurnal Cycle")
-plt.grid()
+import glob as glob
+import os as os
+import re
 
 
-
-
+    
+    
 
 '''
 	BLOCKING UTILIY ROUTINES
@@ -72,47 +47,48 @@ fout_dir = '/glade/u/home/rneale/python/python-netcdf/diurnal_cycle/'
 #           CASE(S) SETUP                  #
 ############################################
 
-def case_setup (case_names,case_ystart,case_yend):
+def case_setup (case_names,case_types,ystart,yend):
 
-
+    all_case_info = {}
+    
     cesm_pref_names = ['f40','f.','b.']
     dir_cesm_all = ['/glade/derecho/scratch/rneale/archive/']
 
-    for icase,case_name in enumerate(case_names):
+  
     
-        match (case_name):
-            case ('TRMM'):
-                case_type = 'obs'
-                dir_case0 = '/glade/campaign/cgd/amp/rneale/data/TRMM/3hrly/0.25deg/'
-                
-            case ('GPCP'):
-                case_type = 'obs'
-                
-            case (any(sub in case_names for sub in cesm_pref_names)):    # CAM/CESM cases
-                case_type = 'cesm'
-                # Try to see if common directory locations exsit
-                dir_case0 = None 
-                for dir_cam in dir_cesm_all:
-                    if (os.path.exists(dir_cam+case_name)): dir_case0 = dir_cam+case_name
-                if dir_case = None: 'CESM/CAM Case Not found in a Common Location...')
-                        
-                
+    for icase,case_name in enumerate(case_names):
 
+        case_type = case_types[icase]
+        
+        match (case_type):
+               
+        
+            case ('obs'):
+        
+                match (case_name):
+                    case ('TRMM'):
+                        dir_case0 = '/glade/campaign/cgd/amp/rneale/data/TRMM/3hrly/1deg/'
+            case ('SAAG'):
                 
-
+                match (case_name):
+                    case ('f.e22r.SAMwrf01.ne30x1.L32.REFERENCE'):
+                       dir_case0 = ''
+    
+                
+    
     # Conmstruct meta datafarme
     
-     all_case_info[ens_name] = [case_names,ystart[iens],yend[iens],file_templates]  
-
-    
-#    pprint.pprint(all_ens_info)
-
-    df_info = pd.DataFrame.from_dict(all_case_info, orient='index',columns=['Case Name','Start Year','End Year','Run Name','Run File'])
-#    df_info = pd.DataFrame(data=all_ens_info)
-    display(df_info)
+        all_case_info[case_name] = [case_type,ystart[icase],yend[icase],case_names[icase],dir_case0]
     
     
-    return case_meta
+#    pprint.pprint(all_case_info)
+    
+    case_info = pd.DataFrame.from_dict(all_case_info, orient='index',columns=['Case type','Start Year','End Year','Run Name','Dir Loc.'])
+    #    df_info = pd.DataFrame(data=all_ens_info)
+    display(case_info)
+    
+    
+    return case_info
 
 
 
@@ -251,332 +227,180 @@ def find_data_info(data_desc,data_name,ystart,yend):
     return df_info
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ###################################
 # Read in data for analysis
 ###################################
 
-# To do
-# - Some kwargs so that there are some assumptions (like nhem) can overridden and args don't always have to be passed.
+# A little tricky as we don't want to read in the whole dataset first
 
-def dataset_get(block_meta,var_name,season,diag_hem):
+def caseinfo_get(dc_meta,var_name,season,diag_set):
 
     fname = '-> dataset_get -> '
 
     tstart = time.time()
     
-    ens_names = list(block_meta.index)
+    case_names = list(dc_meta.index)
 
     # Request info.
 
-    print(fname+ 'Requested season     : ',season)
+    print(fname+ 'Requested season : ',season)
 
-    
+
+    ldcexist_try = False
     # Final dataset dictionary
-    ds_ens = {}
-
-
+    ds_cases = {}
 
     
     # Loop ensemble sets to setup datasets
-    
-    for iens,ens_name in enumerate(ens_names):
-                        
-        run_files = block_meta.loc[ens_name]['Run File']
-        run_names = block_meta.loc[ens_name]['Run Name']
-        year_start = block_meta.loc[ens_name]['Start Year']
-        year_end = block_meta.loc[ens_name]['End Year']
-        
-        num_runs = len(run_names)    
-        
-        # Replace VAR placeholder with actual var
-        run_files = [sub.replace('VAR_TBD', var_name) for sub in run_files]
 
-        print(fname,'Opening ensemble ',ens_name,' - ',num_runs,' ensemble(s)')
-        print(fname+ 'Requested year range : ',year_start,'-',year_end)
+    for icase,case_name in enumerate(case_names):
+                        
+        print(case_name)     
+        
+        year_start = dc_meta.loc[case_name]['Start Year']
+        year_end = dc_meta.loc[case_name]['End Year']      
+
+        print(fname,'Case name',case_name)
+        print(fname+ 'Requested year range : ',year_start,'->',year_end)
 
         # Chunk sizes
         chunk_sizes = {'time': 365, 'latitude': 360, 'longitude': 180}
-        
-        
-        # Grab each dataset separately (will require some work for CESM2 as they are in decadal files.)
-        
-        for irun,run_file in enumerate(run_files):    
-            
-            match(ens_name):
-                
-                case 'ERA5':
-                    ds_run = xr.open_mfdataset(run_file,parallel=True,chunks=chunk_sizes)
-                    
-                case 'CESM2': 
-                    
-                    # Just concatonate all files for now. (after chnaging DATE to *)
-                    run_file = run_file.replace('DATE_RANGE', '*')
-                    ds_run = xr.open_mfdataset(run_file,parallel=True,chunks=chunk_sizes)
-                    
-                case _ :
 
-                    ds_run = xr.open_mfdataset(run_file,combine="nested",parallel=True,chunks=chunk_sizes)
+        # Check to see if case data exists post processed as lat/lon/dcycle_hrs?
+        
+        if ldcexist_try:
+            print(fname + 'Checking to see if processed data already exists')
+            
+            match (case_name):
+                case 'SAAG':
+                    dir_data =  '/glade/campaign/cgd/amp/patc/SAM_PostProc/Data_CESM/MEANS/'
+                    case_dir  = '/L32/ne30x1/h2/'
+                    files_all = dir_data+case_dir
+                    print(fname + 'Directory -> ' + dir_data)
                     
                     
-                    # Data on the file is in silly Julian days that need to be converted to gregorian
+             
+
+
+
+        
+        else :
+        
+            match (case_name):   
+                case 'TRMM':
+                    dir_data = '/glade/campaign/cgd/amp/rneale/data/TRMM/3hrly/1deg/'
+                    files_all = dir_data+'3B42.??????.3hr_V7.1x1.nc'
+                    flist = sorted(glob.glob(files_all))
+                    print(fname + 'Directory -> ' + dir_data)
+                    print(fname + 'Total # of files -> ' , len(flist))
+                    print(fname + 'First file -> ' + os.path.basename(flist[0]))
+                    print(fname + 'Last file -> ' + os.path.basename(flist[-1]))
                     
-                    if ens_name in ['ERAI','MERRA']:
-                            ds_run['time'] = pd.to_datetime(ds_run['time'], origin='julian', unit='D')
-                    if ens_name in ['ERAI']:
-                            ds_run = ds_run.reindex(lat=ds_run.lat[::-1])
-                        
-# Subset for years and season 
-            ds_run = ds_run.sel(time=slice(year_start,year_end))
-
-            
-# Year range check
-            ystart_data = ds_run['time'].dt.year.min().item()
-            yend_data = ds_run['time'].dt.year.max().item()
-            
-            if (ystart_data != int(year_start) or yend_data != int(year_end)): 
-                print(fname,'   *Warning* ',ens_name,' ensemble data years do not match requested years',ystart_data,'-',yend_data)  
-                
-            ds_run = ds_run.sel(time=ds_run['time.season'] == season)
-        
-            
-            # Append datasets
+     ## Subset for years and months
     
-            if irun==0 :
-                ds_this_ens = ds_run
-            else:
-                ds_this_ens = xr.concat([ds_this_ens, ds_run], 'name')
-
-          
-# Name the dataset dimension from from name
-
-        ds_this_ens = ds_this_ens.assign_coords(name = ("name", run_names))
-
-        if num_runs == 1:
-            ds_this_ens[var_name] = ds_this_ens[var_name].expand_dims(name=run_names)
-        
-        ds_ens[ens_name] = ds_this_ens 
+                    flist = [ff for ff in flist if '2010' in ff]
+                    print(fname + 'Total # of files -> ' , len(flist))
+                    print(fname + 'First file -> ' + os.path.basename(flist[0]))
+                    print(fname + 'Last file -> ' + os.path.basename(flist[-1]))
     
-    print(fname,f'Duration: {time.time() - tstart}') ; print()
-    
-    return ds_ens
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#####################################################################
-# Calculate 2D blocking idex based on Z500 
-# Davini et al., (2012) http://doi.org/10.1029/2012GL052315
-#####################################################################
-
-# To do
-# - Some kwargs so that there are some assumptions (like nhem) can overridden and args don't always have to be passed.
-
-
-
-def block_z500_freq(block_meta,ens_ds,bseason,block_diag=None,file_opts='x'):
-
-    fname = '-> block_z500_freq -> '
-
-
-    ens_names = list(block_meta.index)
-
-    block_freq_ens = {}  # Dictionary for ensemble specific block freq.
-
-
-    
-    #### Loop if wened to write or just calculate.    
-
-    ghgn_thresh = -5.
-    ghgs_thresh = 0.
-    
-    # Latitude range to read in
-    lat_s_in = 35.
-    lat_n_in = 75.
-
-    # Latitude range for moving 2D latitude ghg calculation.
-
-    dlat_2d = 15.
-    
-    # Baseline latitudes for the block calculation.
-    blat0 = 60. 
-    blatn = 78.85
-    blats = 41.25                                                                                                                                                                                                                                                                          
-    # Nominal Block latitude ranges (with lat deltas)
-    deltas = [-3.75,0.,3.75] 
-
-    blats_0= [blat0+i for i in deltas]
-    blats_n= [blatn+i for i in deltas]
-    blats_s= [blats+i for i in deltas]
-
-    
-    print(ens_names)
-    
-    # Loop over ensembles sets (read in write out if needed)
-    
-    for iens,ens_name in enumerate(ens_names):
-
-        tstart = time.time()
-
-        block_freq = None
-
-        year_start = block_meta.loc[ens_name]['Start Year']
-        year_end = block_meta.loc[ens_name]['End Year']
-        nens_mem = block_meta.loc[ens_name]['Ensemble Size']
-        
-        
-        
-        if file_opts in ['w','x']: # Do not calculated if just reading in.
-
-        
-            ds_this_ens = ens_ds[ens_name]
-        
-        # Grab data and variable        
-            ens_z500 = ds_this_ens['Z500']
-    
-        # Subset required latitude limits.
-            ens_z500 = ens_z500.sel(lat=slice(lat_s_in,lat_n_in))
-    
-        # Grab actual latitudes nearest blats_x on the data grid
-            blats_ng = ens_z500.lat.sel(lat=blats_n, method="nearest")
-            blats_0g = ens_z500.lat.sel(lat=blats_0, method="nearest")
-            blats_sg = ens_z500.lat.sel(lat=blats_s, method="nearest")
+                    flist = [ff for ff in flist if re.search(r'\d{4}01', ff)]
+                    print(fname + 'Total # of files -> ' , len(flist))
+                    print(fname + 'First file -> ' + os.path.basename(flist[0]))
+                    print(fname + 'Last file -> ' + os.path.basename(flist[-1]))
     
             
-        # Calculate Z500 for on-grid N,S and central points for all longitudes.   
-            
-            z500_blats_n = ens_z500.sel(lat=blats_ng)
-            z500_blats_0 = ens_z500.sel(lat=blats_0g)
-            z500_blats_s = ens_z500.sel(lat=blats_sg)
     
-
-            print(fname,' Calculating blocking statistics for ',ens_name)
-
-            match(block_diag):
-
-
-               
-                case '1D':
-
-                    #### 1D : :This code flags each day as 'blocked' if the thresholds are met, for the 3 lat bounds (deltas)
-                
                     
-                    for idel in range(0,len(deltas)):
 
-                        
-                         blat_ni = blats_ng[idel]
-                         blat_0i = blats_0g[idel]
-                         blat_si = blats_sg[idel]
-            
-                
-                        # Tricky code: Basically it prevents duplicate lat being retained in a lat dimenstion. This happens if resolution of data is course.
-                        # It trims the lat index to the first one identified (then if there are 2 values it goes to the first. Hence the min()) 
-                        
-                         z500_blat_ni = z500_blats_n.isel(lat=min(np.where(blats_ng == blat_ni))[0])
-                         z500_blat_0i = z500_blats_0.isel(lat=min(np.where(blats_0g == blat_0i))[0])
-                         z500_blat_si = z500_blats_s.isel(lat=min(np.where(blats_sg == blat_si))[0])
-                                                   
-                       
-                         # Find local gradients for every ensemble, time and longitude (big) 
-                         ghgn = (z500_blat_ni-z500_blat_0i) / (blat_ni-blat_0i)    
-                         ghgs = (z500_blat_0i-z500_blat_si) / (blat_0i-blat_si)  
-            
-                        # Initialize blocked boolean to False
-                         if idel == 0:
-                            is_blocked = z500_blat_0i.astype('bool').rename('is_blocked')
-                            is_blocked = xr.where(is_blocked, False, is_blocked)  # Initialize to False
-                        
-                         # Boolean for saying whether a time and longitude point is blocked or not 
-                         is_blocked_idel =  xr.where((ghgs > ghgs_thresh) & (ghgn < ghgn_thresh),True,False)
-                         is_blocked = np.logical_or(is_blocked_idel,is_blocked)
-
-                case '2D':
-                    
-                ### 2D (loop latitudes)
-
-
-                    # Initialize blocked boolean to False
-                 
-                    is_blocked = ens_z500.astype('bool').rename('is_blocked')
-                    is_blocked = xr.where(is_blocked, False, is_blocked)  # Initialize to False
-
-                    ghgn = xr.zeros_like(ens_z500)
-                    ghgs = xr.zeros_like(ens_z500)
-                    
-              
-                    for ilat,blat_0 in enumerate(ens_z500.lat.sel(lat=slice(lat_s_in,lat_n_in))):               
-
-
-                        blat_n = blat_0+dlat_2d
-                        blat_s = blat_0-dlat_2d
-                        
-                        z500_blat_n = ens_z500.sel(lat=blat_n, method="nearest")
-                        z500_blat_0 = ens_z500.sel(lat=blat_0, method="nearest")
-                        z500_blat_s = ens_z500.sel(lat=blat_s, method="nearest")
-                        
-                        ghgn[:,:,ilat,:] = (z500_blat_n-z500_blat_0) / (blat_n-blat_0)    
-                        ghgs[:,:,ilat,:] = (z500_blat_0-z500_blat_s) / (blat_0-blat_s)  
-
-                        
-                        
-                    # Boolean for saying whether a time, lat and lon point is blocked or not 
-                    is_blocked =  xr.where((ghgs > ghgs_thresh) & (ghgn < ghgn_thresh),True,False)
-
-                case _ :
-                    print (fname,' No such blocking diagnostic - ',block_diag)
-                    sys.errror(0)
-            
-        # Determine frequency
-            
-            block_days = is_blocked.sum(dim='time')
-            block_freq = block_days / is_blocked.sizes['time']
-
-
-            # Read or write file of block values
-        block_freq = block_file_read_write(ens_name,nens_mem,year_start,year_end,bseason,block_freq,block_diag,file_opts)
-
-       
-        bmin = 100.*(block_freq.min()) ; bmax = 100.*(block_freq.max())
-        
-        print(fname,'Min/max blocking frequency for ensemble ',ens_name,' = ',bmin.values,',',bmax.values)
-
-   
-
-
-        
-    # Push this ensemble to a dictionary, and bring in meemory so it in't repeatedly happening for the plotting routine.
-    
-        block_freq_ens[ens_name] = block_freq.compute()
 
     
-    # To do: Write out and read in the blocking logical and or frequency data 
-    # Turn into a dataframe?
-        
-        # ENS ENSEMBLE LOOP
+    print(fname,f'Function Duration: {time.time() - tstart}') ; print()
+    
+    return flist
+    
+
+
+
+###################################################
+
+
+def calc_dcycle(case_ds):
+
+# Loop over cases and produce a 2Dxtime of day array that can be written to a file and or plotted
+# Each case also read in a diurnal cycle dataset from a previous writtten out calculation.
     
     
-    return block_freq_ens
+    case_ds
+    
+    nfiles = len()
+    
+    # Open CESM file (replace with actual file name)
+    ds = xr.open_dataset("your_file.nc")
+    
+    # Choose variable (change 'PRECT' to your target variable)
+    var_name = "PRECT"
+    data = ds[var_name]
+    
+    # Convert time coordinate to hour-of-day
+    hour_of_day = data['time'].dt.hour
+    
+    # Compute mean diurnal cycle
+    diurnal_cycle = data.groupby(hour_of_day).mean(dim="time")
+    
+    # Apply FFT to get harmonics
+    fft_result = np.fft.fft(diurnal_cycle)
+    
+    # Compute frequencies (0-23 hours, since we have 24 hours in a diurnal cycle)
+    freqs = np.fft.fftfreq(len(diurnal_cycle), d=1)  # d=1 since it's hourly data
+    
+    # Compute amplitude and phase of harmonics
+    amplitude = np.abs(fft_result)
+    phase = np.angle(fft_result)
+    
+    # Plot Harmonic Amplitudes
+    plt.figure(figsize=(8, 5))
+    plt.stem(freqs[:12], amplitude[:12], basefmt=" ")
+    plt.xlabel("Harmonic Number")
+    plt.ylabel("Amplitude")
+    plt.title(f"Harmonics of {var_name} Diurnal Cycle")
+    plt.grid()
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -680,150 +504,6 @@ def block_file_read_write(ens_name,nens,year_start,year_end,bseason,block_array_
 
 
 
-
-
-
-#####################################################################
-# OLD ROUTINE - Calculate 1D blocking idex based on Z500 
-# Following D'Andrea, 1998) https://doi.org/10.1007/s003820050230
-#####################################################################
-
-# To do
-# - Some kwargs so that there are some assumptions (like nhem) can overridden and args don't always have to be passed.
-
-def block_z500_1d(block_meta,ens_ds,bseason,file_opts='x'):
-
-    fname = '-> block_z500_1d -> '
-
-
-    ens_names = list(block_meta.index)
-
-    block_freq_ens = {}  # Dictionary for ensemble specific block freq.
-    
-    file_netcdf = 'block_1d_freq_test.nc' 
-
-
-    #### Loop if wened to write or just calculate.    
-
-    ghgn_thresh = -5.
-    ghgs_thresh = 0.
-    
-    # Latitude range to read in
-    lat_s_in = 10.
-    lat_n_in = 80.
-
-    # Basleline latitudes for the block calculation.
-    blat0 = 60. 
-    blatn = 78.85
-    blats = 41.25                                                                                                                                                                                                                                                                          
-    # Nominal Block latitude ranges (with lat deltas)
-    deltas = [-3.75,0.,3.75] 
-
-    blats_0= [blat0+i for i in deltas]
-    blats_n= [blatn+i for i in deltas]
-    blats_s= [blats+i for i in deltas]
-
-    
-   
-    
-    # Loop over ensembles sets (read in write out if needed)
-    for iens,ens_name in enumerate(ens_names):
-
-        tstart = time.time()
-
-        block_freq = None
-
-        year_start = block_meta.loc[ens_name]['Start Year']
-        year_end = block_meta.loc[ens_name]['End Year']
-        nens_mem = block_meta.loc[ens_name]['Ensemble Size']
-        
-        
-        
-        if file_opts in ['w','x']: # Do not calculated if just reading in.
-
-        
-            ds_this_ens = ens_ds[ens_name]
-        
-        # Grab data and variable        
-            ens_z500 = ds_this_ens['Z500']
-    
-        # Subset required latitude limits.
-            ens_z500 = ens_z500.sel(lat=slice(lat_s_in,lat_n_in))
-    
-        # Grab actual latitudes nearest blats_x on the data grid
-            blats_ng = ens_z500.lat.sel(lat=blats_n, method="nearest")
-            blats_0g = ens_z500.lat.sel(lat=blats_0, method="nearest")
-            blats_sg = ens_z500.lat.sel(lat=blats_s, method="nearest")
-    
-            
-        # Calculate Z500 for on-grid N,S and central points for all longitudes.   
-            
-            z500_blats_n = ens_z500.sel(lat=blats_ng)
-            z500_blats_0 = ens_z500.sel(lat=blats_0g)
-            z500_blats_s = ens_z500.sel(lat=blats_sg)
-    
-          
-            
-        # This code flags each day as 'blocked' if the thresholds are met, for the 3 lat bounds (deltas)
-    
-            for idel in range(0,len(deltas)):
-                 blat_ni = blats_ng[idel]
-                 blat_0i = blats_0g[idel]
-                 blat_si = blats_sg[idel]
-    
-        
-        # Tricky code: Basically it prevents duplicate lat being retained in a lat dimenstion. This happens if resolution of data is course.
-        # It trims the lat index to the first one identified (then if there are 2 values it goes to the first. Hence the min()) 
-                
-                 z500_blat_ni = z500_blats_n.isel(lat=min(np.where(blats_ng == blat_ni))[0])
-                 z500_blat_0i = z500_blats_0.isel(lat=min(np.where(blats_0g == blat_0i))[0])
-                 z500_blat_si = z500_blats_s.isel(lat=min(np.where(blats_sg == blat_si))[0])
-                
-    
-                 if idel==0 : 
-                    is_blocked = z500_blat_0i.astype('bool')
-                    is_blocked = xr.where(is_blocked, False, is_blocked)  # Initialize to False
-               
-                 # Find local gradients for every ensemble, time and longitude (big) 
-                 ghgn = (z500_blat_ni-z500_blat_0i) / (blat_ni-blat_0i)    
-                 ghgs = (z500_blat_0i-z500_blat_si) / (blat_0i-blat_si)  
-    
-    
-                 # Boolean for saying whether a time point is blocked or not 
-                 is_blocked_idel =  xr.where((ghgs > ghgs_thresh) & (ghgn < ghgn_thresh),True,False)
-                 is_blocked = np.logical_or(is_blocked_idel,is_blocked)
-    
-            
-        # Determine frequency
-            
-            block_days = is_blocked.sum(dim='time')
-            block_freq = block_days / is_blocked.sizes['time']
-
-
-            # Read or write file of block values
-        block_freq = block_file_read_write(ens_name,nens_mem,year_start,year_end,bseason,block_freq,file_opts) 
-
-       
-        bmin = 100.*(block_freq.min(dim='lon')) ; bmax = 100.*(block_freq.max(dim='lon'))
-        
-        print(fname,'Min/max blocking frequency for ensemble ',ens_name,' = ',bmin.values,',',bmax.values)
-
-   
-
-
-        
-    # Push this ensemble to a dictionary, and bring in meemory so it in't repeatedly happening for the plotting routine.
-    
-        block_freq_ens[ens_name] = block_freq.compute()
-
-    
-    # To do: Write out and read in the blocking logical and or frequency data 
-    # Turn into a dataframe?
-        
-        # ENS ENSEMBLE LOOP
-    
-    
-    return block_freq_ens
 
 
 

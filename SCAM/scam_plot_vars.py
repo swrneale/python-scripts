@@ -54,13 +54,14 @@ def scam_vars_grab():
     #vname = 'CLDLIQ' ; vscale = 1000.
     #vname = 'CLDLIQZM' ; vscale = 1000.
     #vname = 'DLFZM' ; vscale = 1000.
-    #vname = 'QRS' ; vscale = 86400.
-    #vname = 'QRL'   ; vscale = 86400. ; units2d='K/day' ; cmin = -10 ; cmax = 10. ; cmap = 'RdBu_r'
+#    vname = 'QRS' ; vscale = 86400.
+
+    vname = 'QRL'   ; vscale = 86400. ; units2d='K/day' ; cmin = -10 ; cmax = 10. ; cmap = 'RdBu_r'
     
 #    vname = 'ZMDQ'   ; vscale = 1000.*86400. ; units2d='g/kg/day' ; cmin = -6 ; cmax = 6. ; cmap = 'RdBu'
 #    vname = 'ZMDQ'   ; vscale = 1000.*86400. ; units2d='g/kg/day' ; cmin = 0.2 ; cmax = 1.8 ; cmap = 'RdBu'
     
-    vname = 'ZMDT'   ; vscale = 86400. ; units2d='K/day' ; cmin = -5 ; cmax = 10. ; cmap = 'RdBu_r'
+#    vname = 'ZMDT'   ; vscale = 86400. ; units2d='K/day' ; cmin = -5 ; cmax = 10. ; cmap = 'RdBu_r'
 #    #vname = 'ZMDLF'   ; vscale = 1000.*86400. ; units2d='K/day' ; cmin = -10 ; cmax = 10. ; cmap = 'RdBu_r'
 #    vname = 'DMPDZ'   ; vscale = 1000. ; units2d='/km' ; cmin = -1.05; cmax = -0.05 ; cmap = 'RdBu_r'
     
@@ -113,7 +114,7 @@ def scam_vars_grab():
 #    vname1d = 'PKHMAX' ; vscale1d = 1. ;  units1d='pressure' ; pmin = 800. ; pmax= 1050. # Pressure location of KHMAX
 #    vname1d = 'PBLH' ; vscale1d = 1. ;  units1d='meters' ; pmin = 50. ; pmax= 4000. # Pressure location of KHMAX
     #vname1d = 'TKE&IC' ; vscale1d = 1. ;  units1d='meters' ; pmin = 0. ; pmax= 40. # Pressure location of KHMAX
-    #vname1d = 'LWCF' ; vscale1d = 1. ;  units1d='W/m^2' ; pmin = 0. ; pmax = 100.
+#    vname1d = 'LWCF' ; vscale1d = 1. ;  units1d='W/m^2' ; pmin = 0. ; pmax = 100.
     
     #vname1d = 'CLDLOW' ; vscale1d = 1.
     

@@ -23,7 +23,7 @@ import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
-import matplotlib.patches as mpatchesf
+import matplotlib.patches as mpatches
 
 
 #import geocat.comp as gcat

@@ -85,11 +85,11 @@ def main():
     var_plot = 'DIV'
     var_plot_scat = 'OMEGA'
     
-    ldiv = False  # Calculate divergence from OMEGA if var_cam = OMEGA
-    l_psst_nino = False
-    l_pminmax_plev = False # Plot lat lon plot of climo/nino/nina ma/min levels of occurrence.
+    ldiv = True  # Calculate divergence from OMEGA if var_cam = OMEGA
+    l_psst_nino = True
+    l_pminmax_plev = True # Plot lat lon plot of climo/nino/nina ma/min levels of occurrence.
     l_pscatt_2d = True # Scatter plot of 2 2D fields.
-    l_vprof = False
+    l_vprof = True
     
     ''''' Named Regions '''''
     
