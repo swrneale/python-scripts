@@ -10,6 +10,8 @@ import glob as glob
 import os as os
 
 
+
+### Mya need to CHANGE for your own local directory to write out derived timeseries (not used for LENS, already in tseries format.)
 dir_ncout = '/glade/work/rneale/python-netcdf/enso/'
 dir_data = '/glade/work/rneale/data/'
 
@@ -144,8 +146,7 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
                 # If empty file then try my derived directory
                 if not files_ls:
                     print('-Checking for local CESM copy, likely a derived variable if it exists')
-                    dir_derived = '/glade/work/rneale/python-netcdf/enso/'
-                    files_hist = dir_derived+file_suff
+                    files_hist = dir_ncout+file_suff
                     files_ls  = glob.glob(files_hist)
     
                 
