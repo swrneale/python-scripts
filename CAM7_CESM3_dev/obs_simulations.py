@@ -134,6 +134,14 @@ def cam_revert_list():
     rl['ssq_T2m'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.ssq_T2m_roughphis_SGH_grlnd28k.001']
     rl['UA_flux'] = ['f.e30_cam6_4_078.FHISTC_LTso.ne30.ocnflx2_roughphis_SGH_grlnd28k.001']
         
+
+# cam6_4_032 dmpdz sensitvity runs
+    
+    rl['dmpdz.01a'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.001a']
+    rl['dmpdz.05b'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.005b']
+    rl['dmpdz.06b'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.006b']
+    rl['dmpdz.07b'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.007b']
+    rl['dmpdz.09b'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.009b']
     
     
 # Pass through for obs.
