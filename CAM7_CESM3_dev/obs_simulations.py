@@ -142,7 +142,18 @@ def cam_revert_list():
     rl['dmpdz.06b'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.006b']
     rl['dmpdz.07b'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.007b']
     rl['dmpdz.09b'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.009b']
+    rl['dmpdz.10b'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.010b']    
+
+# alfa/cmt sensitivtity experiments
+
+    rl['cmt_0.4'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_dev.005']
+    rl['cmt_0.1'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_dev.006']
+    rl['alfa_0.05'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_dev.007']
+    rl['alfa_0.25'] = ['f.cam6_4_032.FLTHIST_ne30.cam7_dev.008']
     
+    rl['zmke']      = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.002b']
+    rl['zmke+tke']   = ['f.cam6_4_032.FLTHIST_ne30.cam7_ke.003b']
+
     
 # Pass through for obs.
 
@@ -154,8 +165,9 @@ def cam_revert_list():
     rl['MERRA'] = ['MERRA']
     rl['JRA25'] = ['JRA25']
     rl['LARYEA'] = ['LARYEA']
-    rl['ERS'] = ['ERS']
+    rl['NVAP'] = ['NVAP']
     rl['WHOI'] = ['WHOI']
+    rl['CERES-EBAF'] = ['CERES-EBAF']
     
     
     
