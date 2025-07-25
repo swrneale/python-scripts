@@ -1,11 +1,20 @@
 ''' UTILITIES AND FIGURE RELATED SUBROUTINES'''
 
 import matplotlib.pyplot as mp
-
+import numpy as np
 
 dir_fig = '/glade/u/home/rneale/python/python-figs/CAM7_CESM3_dev/'
 
 ''' Figure Routines '''
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21,8 +30,8 @@ def plot_lat(ax,fig,zmp,vunits,cname,seas,mask_ocn,last_plot,params_lat):
     fig_pref = 'test'
     tocean = ' - Ocean' if mask_ocn else ''
 
-# A bit tricky but see how many black lines there are and change the symbol if it is not the first obs. case plotted
     
+# A bit tricky but see how many black lines there are and change the symbol if it is not the first obs. case plotted
 
     omarker = ['8','v','+']
     nobs_lines = len([line for line in ax.lines if line.get_color() == 'black'])
@@ -32,7 +41,6 @@ def plot_lat(ax,fig,zmp,vunits,cname,seas,mask_ocn,last_plot,params_lat):
     ax.plot(zmp['lat'], zmp, label=cname, markersize=10, markevery=3, **params_lat)
 
 
-    
 
     
 # Plot 1D zonal average
@@ -50,30 +58,62 @@ def plot_lat(ax,fig,zmp,vunits,cname,seas,mask_ocn,last_plot,params_lat):
         tocean = '_ocn_' if mask_ocn else ''
         mp.savefig(dir_fig+fig_pref+'_zonal_ave_2d_'+var+'_'+seas+tocean+'.png', dpi=120, bbox_inches='tight')
         mp.show()
-    
+
+
+
+
+
+
+
+
+
         
 ''' 2D Lat-Lon Average '''
 
 
-def plot_lat(ax,fig,zmp,vunits,cname,seas,mask_ocn,last_plot,params_latlon):
+def plot_latlon(ax,fig,icase,pvar,vunits,cname,seas,pregion, mask_ocn,lanom_plot,last_plot,params_latlon):
 
+    from matplotlib import cm
+    
     import cartopy
     import cartopy.crs as ccrs
     import cartopy.feature as cfeature # Map features
-
     from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
     
     pproj = ccrs.PlateCarree()
 
-    # Plotting
+    preg_area = get_pregion(pregion)
+
+    lat_min = preg_area[pregion]['lat_min']
+    lat_max = preg_area[pregion]['lat_max']
+    lon_min = preg_area[pregion]['lon_min']
+    lon_max = preg_area[pregion]['lon_max']
     
+    # Plotting
+
+    levs_4colbar = params_latlon['levels']
     norm = cm.colors.BoundaryNorm(boundaries=levs_4colbar, ncolors=256)
 
 
     # Plotting
     
-    pplot = ax.contourf(pvar.lon, pvar.lat, pvar, transform=pproj, cmap=cmap, extend=extend, **params_latlon)
+    pplot = ax.contourf(pvar.lon, pvar.lat, pvar, transform=pproj, extend='both', **params_latlon)
+
+
+    # Add color bar before solid countours
+        
+    if icase == 0 or (icase == 1 and lanom_plot) :
+        cbar_area = [1.02, 0.05, 0.05, 0.85] ; cbar_orient = "vertical"
+        cbar_area = [0.02, -0.2, 0.9, 0.05 ] ; cbar_orient = "horizontal"
+        cbar = ax.inset_axes(cbar_area, transform=ax.transAxes)
+        cbar = fig.colorbar(pplot, cax=cbar, orientation=cbar_orient)
+        if icase ==0 : cbar.set_label(vunits)
+
+
     
+    params_latlon.update({'cmap': None})
+    pplot = ax.contour(pvar.lon, pvar.lat, pvar, transform=pproj, colors='black', linewidths=0.5, **params_latlon)
+
 
     # Mapping
     
@@ -97,89 +137,123 @@ def plot_lat(ax,fig,zmp,vunits,cname,seas,mask_ocn,last_plot,params_latlon):
     lon_formatter = LongitudeFormatter()
     ax.xaxis.set_major_formatter(lon_formatter)
 
-    ax.set_title(fig_let[icase] + case_lname[icase] + rmse_text, fontsize=25)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-''' Set Parameters For Plotting '''
-
-def set_params_lat(icase,obs_set):
+# Letter for fig nu=mber
     
+    fig_let = '('+chr(97 + icase)+') '
 
-    if ptype == 'lat':
     
-        plot_cols = [
-        "red",
-        "royalblue",
-        "darkorange",
-        "forestgreen",
-        "firebrick",
-        "goldenrod",
-        "mediumpurple",
-        "deepskyblue",
-        "crimson"]
+# Mean/RMSE (of the subsetted pregion)
+
+    pvar = pvar.sel(lat=slice(lat_min, lat_max), lon=slice(lon_min, lon_max))
     
-    # Select params
+    gweights = np.cos(np.deg2rad(pvar['lat']))                                                                                                  
+    gweights.name = "weights"       
     
-        plot_opts = {}
-    
+    pvar_mean = pvar.weighted(gweights).mean(dim=["lat", "lon"])                                                                   
+                                                                         
+    pvar2 =  pvar ** 2
+    pvar_rmse = np.sqrt(pvar2.weighted(gweights).mean(dim=('lat', 'lon')))
+
+    fmean_text = f" [Mean: {pvar_mean:.3g}]"
+   
+
+    if lanom_plot and icase > 0:
+         frmse_text = f" [RMSE: {pvar_rmse:.3g}]"
+    else:
+         frmse_text = ""
+
         
-        
-        if case in obs_set:
-            plot_opts.update({'color': 'black'})
-            plot_opts.update({'linestyle': '-'})
-            plot_opts.update({'linewidth': 3})
-            plot_opts.update({'marker': 'x'})
+    ax.set_title(fig_let + cname + fmean_text + frmse_text, fontsize=15)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+''' Set Parameters For Plotting Lat Zonal Average '''
+
+def set_params_lat(icase,case,obs_set):
+    
+
+
+    
+    plot_cols = [
+    "red",
+    "royalblue",
+    "darkorange",
+    "forestgreen",
+    "firebrick",
+    "goldenrod",
+    "mediumpurple",
+    "deepskyblue",
+    "crimson"]
+
+# Select params
+
+    plot_opts = {}
+
+    
+    
+    if case in obs_set:
+        plot_opts.update({'color': 'black'})
+        plot_opts.update({'linestyle': '-'})
+        plot_opts.update({'linewidth': 3})
+        plot_opts.update({'marker': 'x'})
 # Check it's not
-            
         
-        else:
-            plot_opts.update({'color': plot_cols[icase]})
-            plot_opts.update({'linestyle': '-'})
-            plot_opts.update({'linewidth': 2})
-            plot_opts.update({'marker': None})
+    
+    else:
+        plot_opts.update({'color': plot_cols[icase]})
+        plot_opts.update({'linestyle': '-'})
+        plot_opts.update({'linewidth': 2})
+        plot_opts.update({'marker': None})
 
 
     return plot_opts
 
 
 
-''' Set Parameters For Plotting '''
 
-def set_params_latlon(icase,ncases,case,cases,obs_set,lanom_plot):
+
+
+
+
+
+''' Set Parameters For Plotting Lat-Lon'''
+
+def set_params_latlon(icase,ncases,vname,obs_set,lanom_plot):
     
-
+    plot_opts = {}
       
 # Selection for each variable
-    
-    if case =='PRECT':
+
+
+    if vname =='PRECT':
         clevs = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20]
         aclevs = [-12, -8, -6, -4, -3, -2, -1, 0, 1, 2, 3, 4, 6, 8, 10, 12]
-        cbar = 'PRGn'
-        acbar = 'terrain_r'
+        cmap = 'terrain_r'
+        acmap = 'PRGn'
+
 
 
 # Only set to anomaly lpot if > first plot
-    if lanom_plot and icase > 0:   lanom_case = True
+    lanom_case = True if lanom_plot and icase > 0  else False
     
     
-    plot_opts.update({'levels':aclevs) if lanom_case else plot_opts.update({'levels':clevs)
-    plot_opts.update({'cmap': acmap)   if lanom_case else plot_opts.update({'cmap': acmap}) 
+    plot_opts.update({'levels': aclevs}) if lanom_case else plot_opts.update({'levels': clevs})
+    plot_opts.update({'cmap': acmap})   if lanom_case else plot_opts.update({'cmap': cmap}) 
             
 
 
@@ -216,15 +290,121 @@ def set_var_params (var_name,case):
                         }
 
   
-#    if case == 'NVAP':
-#        vari = 'PREH2O'
-#        vscalex = 1.
+#    if case :: 'NVAP':
+#        vari : 'PREH2O'
+#        vscalex : 1.
 #    if var in ['TAUX','TAUY'] and case in obs_cases:
-#        vscalex = -1.
+#        vscalex : -1.
 
 
 
     return var_info
+
+
+
+
+''' Grab Plot Region Domain '''
+
+
+def get_pregion(pregion):
+
+
+    nrow = None
+    ncol = None
+
+    reg_info = {}
+    
+    match pregion:
+    
+        case 'LabSea': # Labrador Sea
+     
+            reg_info[pregion] = {
+                'lat_min' : 35 , 'lat_max' : 70,
+                'lon_min' : 280 , 'lon_max' : 340,
+                'plev_scale' : 0.2,
+                'aplev_scale' : 0.2
+            }
+                
+        case 'IO': # Indian Ocean 
+            
+             reg_info[pregion] = {
+                'lat_min' : -10 , 'lat_max' : 35,
+                'lon_min' : 50 , 'lon_max' : 120,
+                'plev_scale' : 1.,
+                'aplev_scale' : 1.
+             }
+    
+        case 'US': # USA #
+            
+             reg_info[pregion] = {
+                'lat_min' : 25 , 'lat_max' : 55,
+                'lon_min' : -120 , 'lon_max' : -70, 
+                'plev_scale' : 0.25,
+                'aplev_scale' : 0.25
+             }
+    
+        case 'SAm': # South America 
+            
+             reg_info[pregion] = {
+                'lat_min' : -40 , 'lat_max' : 15,
+                'lon_min' : -90 , 'lon_max' : -30, 
+                'plev_scale' : 0.5,
+                'aplev_scale' : 0.5
+            }
+    
+    
+        case 'Aus': # Australia 
+            
+            reg_info[pregion] = {
+                'lat_min' : -20 , 'lat_max' : 10,
+                'lon_min' : 120 , 'lon_max' : 150,
+                'plev_scale' : 0.5,
+                'aplev_scale' : 0.5
+            }
+    
+        case 'TP': # Tropical Pacific
+            
+             reg_info[pregion] = {
+                'lat_min' : -20 , 'lat_max' : 20,
+                'lon_min' : 0., 'lon_max' : 359.,
+                'plev_scale' : 0.5,
+                'aplev_scale' : 0.5
+            }
+    
+             nrow = 5 ; ncol = 2 # Rows and columns
+    
+        case 'WP': # West Pacific
+            
+             reg_info[pregion] = {
+                'lat_min' : -20 , 'lat_max' : 40,
+                'lon_min' : 110 , 'lon_max' : 270.,
+                'plev_scale' : 0.5,
+                'aplev_scale' : 0.5
+            }
+    
+            
+        case 'Tropics': # Tropics Wide
+            
+             reg_info[pregion] = {
+                'lat_min' : -45 , 'lat_max' : 45,
+                'lon_min' : 0 , 'lon_max' : 360.,
+                'plev_scale' : 0.8,
+                'aplev_scale' : 1.
+            }
+
+
+    return reg_info
+
+
+
+
+
+
+
+
+
+
+
 
 
 
