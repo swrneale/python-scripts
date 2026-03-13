@@ -28,26 +28,38 @@ def scam_cases_grab():
     
 ### CAM7 ZM PBL CASES ###
 
-#    fig_pref = 'zm_cam7_pbl_sens_noise'
+#    fig_pref = 'zm_cam7_pbl_sens_noise_tiedke'
 #   fig_pref = 'zm_cam7_pbl_sens_noise_smthd'
-    fig_pref = 'zm_cam7_zm_def_check2'
+#    fig_pref = 'zm_cam7_zm_def_check2'
 #    fig_pref = 'zm_cam7_ke_tune'
-#    
+    fig_pref = 'first_SEcore_089v130'
 
 
+    cases = ['FSCAM.ne3_ne3_mg37.togaII.cam7.cam_6_4_130.000','FSCAM.ne3_ne3_mg37.XXX.cam7.cam_6_4_089.000','FSCAM.T42_T42.XXX.cam7_zmpbl.000']
+    cnames = ['cam6_4_130 (ne3)','cam6_4_089 (ne3)','cam6_4_032 (T42)']
 
 
-#    cases = ['FSCAM.T42_T42.XXX.cam7_zmpbl.000','FSCAM.T42_T42.XXX.cam7_zmpbl.001','FSCAM.T42_T42.XXX.cam7_zmpbl.002','FSCAM.T42_T42.XXX.cam7_zmpbl.003','FSCAM.T42_T42.XXX.cam7_zmpbl.005','FSCAM.T42_T42.XXX.cam7_zmpbl.006']
-#    cnames =  ['CAM7 (default)','CAM7 (ZM PBL Off)','CAM7 (ZM PBL phscale=0.25)','CAM7 (default+1.5K-tiedke_add)','CAM7 (default+all Buoy)','CAM7 (def.+all B+t_add_lcl)']
+    
+#    cases = ['FSCAM.ne3pg3_ne3pg3_mg37.XXX.cam7.cam_6_4_089.000','FSCAM.ne3_ne3_mg37.XXX.cam7.cam_6_4_089.000','FSCAM.ne3pg3_ne3pg3_mg37.XXX.cam7.cam_6_4_089_dmpdz_ke.000']
+#    cnames = ['cam6_4_089 (ctrl-ne3pg3)','cam6_4_089 (ctrl-ne3)','cam6_4_089 (dmpdz_ke)']
+
+
+#    cases = ['FSCAM.T42_T42.XXX.cam7_zmpbl.000','FSCAM.T42_T42.XXX.cam7_zmpbl.001','FSCAM.T42_T42.XXX.cam7_zmpbl.002']
+#    cnames =  ['CAM7 (default)','CAM7 (ZM PBL Off)','CAM7 (ZM PBL phscale=0.25)']
+
+
+#    cases = ['FSCAM.T42_T42.XXX.cam7_zmpbl.000','FSCAM.T42_T42.XXX.cam7_zmpbl.001','FSCAM.T42_T42.XXX.cam7_zmpbl.002','FSCAM.T42_T42.XXX.cam7_zmpbl.003','FSCAM.T42_T42.XXX.cam7_zmpbl.005','FSCAM.T42_T42.XXX.cam7_zmpbl.006','FSCAM.T42_T42.togaII.cam7_zmpbl.007']
+#    cnames =  ['CAM7 (default)','CAM7 (ZM PBL Off)','CAM7 (ZM PBL phscale=0.25)','CAM7 (default+1.5K-tiedke_add)','CAM7 (default+all Buoy)','CAM7 (def.+all B+t_add_lcl)','CAM7 (default+2.5K-tiedke_add)']
 
 #    cases = ['FSCAM.T42_T42.XXX.cam7_zmpbl.000','FSCAM.T42_T42.XXX.cam7_zmpbl.001','FSCAM.T42_T42.XXX.cam7_zmpbl.003','FSCAM.T42_T42.XXX.cam7_zmpbl.005','FSCAM.T42_T42.XXX.cam7_zmpbl.007']
 #    cnames =  ['CAM7 (default)','CAM7 (ZM PBL Off)','CAM7 (default+1.5K-tiedke_add)','CAM7 (default+all Buoy)','CAM7 (def.+all B+t_add_lcl=1.5K)']
 
 #    cases = ['FSCAM.T42_T42.XXX.cam7_zmall.001','FSCAM.T42_T42.XXX.cam7_zmall.002','FSCAM.T42_T42.XXX.cam7_zmall.003','FSCAM.T42_T42.XXX.cam7_zmall.004','FSCAM.T42_T42.XXX.cam7_zmall.005']
 #    cnames =  ['CAM7','+KE','+KE+TKE','+Low_Ent','+ParT']
-    
-    cases = ['FSCAM.T42_T42.XXX.cam7_zmall.001','FSCAM.T42_T42.XXX.cam6_4_032.000']
-    cnames =  ['CAM7 (w/ KE tag)','CAM7 (w/ 032 tag)']
+
+### BFB SIMULATIONS ###
+#    cases = ['FSCAM.T42_T42.XXX.cam7_zmall.001t','FSCAM.T42_T42.XXX.cam6_4_032.000t']
+#    cnames =  ['CAM7 (w/ KE tag)','CAM7 (w/ 032 tag)']
     
     
 #    cases  = ['FSCAM.T42_T42.XXX.cam7_zmall.001b','FSCAM.T42_T42.XXX.cam6_4_032.001','FSCAM.T42_T42.XXX.cam6_4_032.000','FSCAM.T42_T42.XXX.cam7_zmpbl.000','FSCAM.T42_T42.XXX.atmos_phys.000']

@@ -12,7 +12,8 @@ import os as os
 
 
 ### Mya need to CHANGE for your own local directory to write out derived timeseries (not used for LENS, already in tseries format.)
-dir_ncout = '/glade/work/rneale/python-netcdf/enso/'
+#dir_ncout = '/glade/work/rneale/python-netcdf/enso/'
+dir_ncout = '/glade/derecho/scratch/rneale/enso_wavelet/'
 dir_data = '/glade/work/rneale/data/'
 
 
@@ -43,7 +44,7 @@ def nino_region(nino_name):
 
 
 
-def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file ,lread_ts_file):
+def get_dataset(case,case_type,case_owner,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file ,lread_ts_file):
 
 
     cvars = ['TS','TAUX','PRECT','OMEGA500','DTCOND300','DTCOND500','DTCOND700'] 
@@ -51,14 +52,17 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
     cvar_scale = cvar_scales[cvars.index(var_axis)]
 
 # Obs. variable names.
+    
     evars = ['sst','chnk','tp','w','']
     efvars = ['sst','taux','prect','omega500','']
-    
+
+
     match case:
 
 
 
 
+       
     
         case _ if case_type == 'OBS':
 
@@ -69,6 +73,14 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
             
             match case:
 
+
+                case 'HADISST':
+
+                    dir_hadisst = '/glade/campaign/cesm/cesmdata/cseg/inputdata/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2022_c241003.nc'
+        
+                    da_axis = xr.open_dataset(dir_hadisst)['SST_cpl']
+                    vscale = 1.
+            
                 case 'ERA5':
 
                     
@@ -105,19 +117,30 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
 
 
 
-        case _ if case_type in ['cesm1','cesm2']:
+        case _ if case_type in ['cesm1','cesm2','cmip6']:
 
             vscale = cvar_scale
             
             if case_type == 'cesm1':
                 dir_lens = '/glade/campaign/cesm/collections/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/'
                 fyrs_str = '.04*'
-            else:
+                file_suff = var_axis+'/'+case+'.cam.h0.'+var_axis+fyrs_str+'.nc'
+            
+            if case_type == 'cesm2':
                 dir_lens = '/glade/campaign/cgd/cesm/CESM2-LE/timeseries/atm/proc/tseries/month_1/'
                 fyrs_str = '.18*'
+                file_suff = var_axis+'/'+case+'.cam.h0.'+var_axis+fyrs_str+'.nc'
+
+            if case_type == 'cmip6':    
+                dir_lens = '/glade/campaign/collections/cdg/data/CMIP6/CMIP/NCAR/CESM2/piControl/r1i1p1f1/Amon/ts/gn/v20190320/'
+                file_suff = 'ts_Amon_CESM2_piControl_r1i1p1f1_gn_040001-049912.nc'
+                var_axis = 'ts'
+
+               
                 
-            file_suff = var_axis+'/'+case+'.cam.h0.'+var_axis+fyrs_str+'.nc'
+         
             files_hist = dir_lens+file_suff
+         
             files_ls  = glob.glob(files_hist)         
 
       
@@ -152,44 +175,53 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
                 
                 da_axis = xr.open_mfdataset(files_ls,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")[var_axis]
               
-                
-        
-           
+                       
     
         case _ if case_type == 'cesm3':
 
 
             # Does a timeseries dataset exist for this case?
-            # Check for this file name lwoer down    
+            # Check for this file name lower
+            # Do logic to pick up either h0 or h0a filename
 
+            ofile_case =  dir_ncout+case+'.cam.h0a.TS.'+str(yr0)+'-'+str(yr1)+'.10.N-10.S.nc'
             
-            ofile_case = dir_ncout+case+'_'+var_axis+'_mmeans_ts.nc'
-
       
-            # add vscale here
-            vscale = cvar_scale
+            # Add vscale here
             
-            if os.path.exists(ofile_case) and lread_ts_file:
-    
-                print('  - Timeseries files exist for the case - using them')
+            vscale = cvar_scale
+
+           
+            
+            if (os.path.exists(ofile_case) or os.path.exists(ofile_case.replace('h0a','h0'))) and lread_ts_file:
+
+             
+                
+                if os.path.exists(ofile_case.replace('h0a','h0')): ofile_case = ofile_case.replace('h0a','h0')
+
+                
+                
+                print('  - Timeseries files exist for the case - so I am using them')
             
                 print('     ',ofile_case)
             
                 da_axis = xr.open_dataset(ofile_case)[var_axis]
 
+               
+              
 
             else:
                 
-                # Pick the right directory (hannay/gmarques)
+                # Pick the right directory (hannay orgmarques)
     
-                dir_c3 = '/glade/derecho/scratch/hannay/archive/'
+                dir_c3 = '/glade/derecho/scratch/'+case_owner+'/archive/'
                 
-                if os.path.isdir(dir_c3+case):
-                    print("   - Cecile's Run")
-                # Your operation here, e.g. read/write files
-                else:
-                    print("   - Gustavo's Run")
-                    dir_c3 = '/glade/derecho/scratch/gmarques/archive/'
+#                if os.path.isdir(dir_c3+case):
+#                    print("   - Cecile's Run")
+#                # Your operation here, e.g. read/write files
+#                else:
+#                    print("   - Gustavo's Run")
+#                    dir_c3 = '/glade/derecho/scratch/gmarques/archive/'
     
                 
     # Grab files and read in.
@@ -198,6 +230,7 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
     
                 
                 if not lread_in_all_hist:
+                    print('  - Using a subset of the available data')
                     files_hist = []
                     yrange = list(range(yr0, yr1+1))
     #                yr_arr_string = "[" + ",".join(f"{n:04d}" for n in yrange) + "]"
@@ -205,29 +238,31 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
     
     #                print(y_arr_strings)
                     for yr_str in yr_arr_strings:
-    #                    print(yr_str)
                         file_ls = dir_c3+case+'/atm/hist/'+case+'.cam.h0a.'+yr_str+'*.nc'
                         files_hist.extend(glob.glob(file_ls)) 
     
                     files_hist.sort()
+
                 
                 else:
-                    file_hist = dir_c3+case+'/atm/hist/'+case+'.cam.h0a.*.nc'
+                    print('  - Using all of the available data')
+                    files_ls = dir_c3+case+'/atm/hist/'+case+'.cam.h0a.*.nc'
+                    files_hist = glob.glob(files_ls)
                     
-               
+                files_hist.sort()
+
      
      # File checks           
                 
-                print('  - Reading ',len(files_hist),' files  (first/last)')
+                print('  - Reading ',len(files_hist),' files (first/last)')
                 print('   -',files_hist[0])
                 print('   -',files_hist[-1])
                 
             # Open them as multiple files
     
-                print('  - Slow read of h0a output...')
-                da_axis = xr.open_mfdataset(files_hist,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")[var_axis]
+                print('  - Opening detected h0a output files...')
+                da_axis = xr.open_mfdataset(files_hist,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal",chunks={})[var_axis]
                 
-    
                 print('  -Done')
                 
             # Write out the timeseries of 2D field files (unscaled)?
@@ -244,6 +279,24 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
 
     
                     print(' - Done')
+
+        case _ if case_type in ['e3smv1','e3smv2','e3smv3']:
+
+              print('  - Grabbing file(s) for E3SMv1/v2 ensembles '+case)
+
+              vscale = 1.
+              dir_ccr  = '/glade/campaign/cgd/ccr/'
+            
+              if case_type == 'e3smv1': dir_e0 = dir_ccr+'E3SMv1-LE/FV_regridded/'  ; tsuff = '.cam.h0.TS.000101-050012'
+              if case_type == 'e3smv2': dir_e0 = dir_ccr+'E3SMv2/FV_regridded/'     ; tsuff = '.eam.h0.TS.0040101-050012'
+              if case_type == 'e3smv3': dir_e0 = dir_ccr+'E3SMv3-LE/'               ; tsuff = '.en00.TS.000101-050012'
+
+
+              dir_e = dir_e0+case+'/atm/proc/tseries/month_1/'
+              efile_case = dir_e+case+tsuff+'.nc'
+
+              da_axis = xr.open_dataset(efile_case)[var_axis]
+    
     
         case _:
             
@@ -252,11 +305,15 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
 
 # Just scale the variable right at the end
 
-
+  
+# Different data formats require different ways to slice the years.
+    if type(da_axis.time.values[0]) == 'cftime._cftime.DatetimeNoLeap':
+        da_axis = da_axis.sel(time=slice(str(yr0), str(yr1)))
+    else:
+        da_axis = da_axis.sel(time=(da_axis.time.dt.year >= yr0) & (da_axis.time.dt.year <= yr1))
+        
     da_axis = vscale *  da_axis
-
     
-
     return da_axis
 
 
@@ -280,6 +337,7 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
 
 def nino_anom_ts(da_axis,nino_reg):
 
+    from scipy import signal
 
     # nino and var regions
     # # Taking settings from the Clivar 2020 ENSO metrics
@@ -304,19 +362,23 @@ def nino_anom_ts(da_axis,nino_reg):
     # Subtract monthly climatology to get anomalies
     
     nino_anom = nino_waxis.groupby('time.month') - nino_caxis
+
+
     
+    # Linearly detrend the data only
+    nino_anom.values = signal.detrend(nino_anom.values)
+   
     
     # Convert to NumPy and flatten, mask NaNs
+#    nino_1d = nino_anom.values.flatten()
     
-    nino_1d = nino_anom.values.flatten()
-    
-    nino_1d = nino_1d[~np.isnan(nino_1d)] 
-    
+#    nino_1d = nino_1d[~np.isnan(nino_1d)] 
     
     
     
     
-    return nino_1d
+    
+    return nino_anom
 
 
 
@@ -361,6 +423,124 @@ def fig_domains(vname):
     return vmin,vmax,axis_vals
 
 
+'''
+    CALCULATION AND PLOTTING FUNCTIONS
+'''
+
+
+def calc_power(ax,nino_ts):
+
+    from scipy.signal import welch
+    from statsmodels.tsa.ar_model import AutoReg
+    from scipy.stats import chi2
+    
+    # Example input: nino_reg is your time series (numpy array)
+    # Replace with your own data
+#    nino_reg = np.random.randn(600)  # e.g., 50 years of monthly anomalies
+
+    nino_ts = nino_ts.dropna("time").values  
+#    display(nino_ts)
+
+    # Parameters
+
+    jave = 5     # number of segments to average (Welch method)
+    pct = 0.10   # percent taper (not directly used, approximate with window)
+    
+    
+    # --- Compute power spectrum using Welch ---
+    nperseg = len(nino_ts) // jave
+    freqs, psd = welch(nino_ts, window="hann", nperseg=nperseg, scaling="density")
+    
+    # --- Convert frequency to period in years (assuming monthly data) ---
+    periods = 1 / (freqs * 12)
+    
+    # --- Estimate AR(1) red noise ---
+    model = AutoReg(nino_ts, lags=1, old_names=False).fit()
+    phi = model.params[1]   # lag-1 autocorrelation
+    var = np.var(nino_ts)
+    
+    red_noise = (1 - phi**2) / (1 - 2*phi*np.cos(2*np.pi*freqs) + phi**2) * var
+    
+    # --- Confidence intervals (chi-square) ---
+    dof = 2 * jave  # degrees of freedom ~ 2*number of averages
+    alpha_low, alpha_high = 0.05, 0.95
+    
+    
+    lower = dof / chi2.ppf(1-alpha_low/2, dof)
+    upper = dof / chi2.ppf(alpha_low/2, dof)
+    
+    ci_low = red_noise * lower
+    ci_high = red_noise * upper
+    
+    # --- Plot ---
+
+    ax.plot(periods, psd, color="black", lw=2, label="Spectrum")
+    ax.plot(periods, red_noise, color="red", lw=2, label="Red noise")
+    ax.plot(periods, ci_low, "r--", lw=1, label="5% / 95% CI")
+    ax.plot(periods, ci_high, "r--", lw=1)
+    
+    ax.set_xlim(8, 0.0833)  # mimic NCL reversed axis
+    ax.set_ylim(0, 40)
+    
+    ax.set_xlabel("Period (years)", fontsize=12)
+    ax.set_ylabel("Variance (unit² / freq)", fontsize=12)
+    ax.set_title("Power Spectrum", fontsize=14)
+    
+#    ax.legend()
+    ax.invert_xaxis()  # Reverse x-axis like in NCL
+    xp = [1,2,3,4,5,6,7,8]
+    ax.set_xticks(xp)
+    ax.set_xticklabels(xp)
+
+
+
+
+'''
+    SCALE THE EXTENT OF THE DATA ON THE X-AXIS
+'''
+
+
+def set_fractional_xlim(ax_list, xdata, frac=0.7, anchor="left"):
+    """
+    Expand xlim so that the data only fills a fraction of the axis width.
+    Hides tick labels outside the actual data range.
+    """
+    
+    x = np.asarray(xdata)
+    xmin = float(np.nanmin(x))
+    xmax = float(np.nanmax(x))
+    D = xmax - xmin
+    if not (0 < frac <= 1):
+        raise ValueError("`frac` must be in (0, 1].")
+    W = D / frac  # total axis width so data spans `frac` of it
+
+    if anchor == "left":
+        xl, xr = xmin, xmin + W      # start exactly at xmin
+    elif anchor == "right":
+        xl, xr = xmax - W, xmax      # end exactly at xmax
+    elif anchor == "center":
+        mid = 0.5 * (xmin + xmax)
+        xl, xr = mid - 0.5 * W, mid + 0.5 * W
+    else:
+        raise ValueError("ENSO_QL: anchor must be 'left', 'center', or 'right'")
+
+    for ax in ax_list:
+        ax.set_xlim(xl, xr)
+
+        # relabel xticks: blank them if outside data range
+        ticks = ax.get_xticks()
+        labels = []
+        for t in ticks:
+            if xmin <= t <= xmax:
+                labels.append(f"{t:g}")
+            else:
+                labels.append("")
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(labels)
+
+    ax.margins(x=0)
+
+    return xl, xr
 
 
 

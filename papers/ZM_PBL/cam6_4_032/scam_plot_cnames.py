@@ -30,7 +30,7 @@ def scam_cases_grab():
 
 #    fig_pref = 'zm_cam7_pbl_sens_noise'
 #   fig_pref = 'zm_cam7_pbl_sens_noise_smthd'
-    fig_pref = 'zm_cam7_zm_def_check2'
+    fig_pref = 'zm_cam7_ic_check'
 #    fig_pref = 'zm_cam7_ke_tune'
 #    
 
@@ -46,8 +46,11 @@ def scam_cases_grab():
 #    cases = ['FSCAM.T42_T42.XXX.cam7_zmall.001','FSCAM.T42_T42.XXX.cam7_zmall.002','FSCAM.T42_T42.XXX.cam7_zmall.003','FSCAM.T42_T42.XXX.cam7_zmall.004','FSCAM.T42_T42.XXX.cam7_zmall.005']
 #    cnames =  ['CAM7','+KE','+KE+TKE','+Low_Ent','+ParT']
 
-    cases = ['FSCAM.T42_T42.XXX.cam7_zmall.001','FSCAM.T42_T42.XXX.cam6_4_032.000']
-    cnames =  ['CAM7 (w/ KE tag)','CAM7 (w/ 032 tag)']
+#    cases = ['FSCAM.T42_T42.XXX.cam7_zmall.001','FSCAM.T42_T42.XXX.cam6_4_032.000']
+#    cnames =  ['CAM7 (w/ KE tag)','CAM7 (w/ 032 tag)']
+
+    cases = ['f.e30.FHIST.SCAM7.XXX.zmpbl.L32.000','f.e30.FHIST.SCAM7.XXX.zmpbl.L32.000ic2']
+    cnames =  ['CAM7-L32-ic1','CAM7-L32-ic2']
 
 
 #    cases  = ['FSCAM.T42_T42.XXX.cam7_zmall.001b','FSCAM.T42_T42.XXX.cam6_4_032.001','FSCAM.T42_T42.XXX.cam6_4_032.000','FSCAM.T42_T42.XXX.cam7_zmpbl.000','FSCAM.T42_T42.XXX.atmos_phys.000']

@@ -6,6 +6,8 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 
+import geocat.comp as gc
+
 import glob as glob
 import os as os
 
@@ -39,6 +41,16 @@ def nino_region(nino_name):
 
 
 
+
+
+
+
+
+
+
+
+
+
 ''' Read in Different Datasets For each Axis '''
 
 
@@ -51,9 +63,17 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
     cvar_scale = cvar_scales[cvars.index(var_axis)]
 
 # Obs. variable names.
-    evars = ['sst','chnk','tp','w','']
-    efvars = ['sst','taux','prect','omega500','']
+    evars = ['sst','avg_iews','tp',   'w',      'd',      'd','d']
+    efvars = ['sst','taux','prect','omega500','div200','div300','div400']
+
+
+# EFigure out if 2D variable can come from 3D input
+    lvar_from3d = var_axis[-3:].isdigit() if len(var_axis) > 3 else False # Test if last 3 digits are an interger and so likely a 2D variable that came from a 3D variable.
+    var_plev = var_axis[-3:]       if (lvar_from3d) else None # Grab the pressure level if the above is true
+    var_3dget = int(var_axis[:-4]) if (lvar_from3d) else None 
     
+
+     
     match case:
 
 
@@ -81,7 +101,7 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
                     evar = evars[cvars.index(var_axis)]
                     efvar = efvars[cvars.index(var_axis)]
                     
-                    da_axis = xr.open_dataset(dir_era5+efvar+'_era5_monthly_1x1.nc')[evar]
+                    da_axis = xr.open_dataset(dir_era5+efvar+'/'+efvar+'_era5_monthly_1x1.nc')[evar]
                     
                     if 'valid_time' in da_axis.dims:
                         da_axis = da_axis.rename({'valid_time': 'time'})
@@ -90,7 +110,7 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
                     
                     if var_axis == 'TS':    vscale = 1.
                     if var_axis == 'PRECT': vscale = 1000.
-                    if var_axis == 'TAUX':  vscale = 30. 
+                    if var_axis == 'TAUX':  vscale = -1
                     if var_axis == 'OMEGA500':  vscale = 36.     
 
                 case 'TROPFLUX' if var_axis=='TAUX':
@@ -148,9 +168,24 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
                     print('-Checking for local CESM copy, likely a derived variable if it exists')
                     files_hist = dir_ncout+file_suff
                     files_ls  = glob.glob(files_hist)
-    
-                
-                da_axis = xr.open_mfdataset(files_ls,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")[var_axis]
+
+                    
+
+                # Now try a 3D derived data grab
+                if not files_ls: # Either the variable just isn't there or we have to derive it from a 3D variable
+                    
+                    if lvar_from3d: # Test if the last 3 letters of the variable name are a digit (e.g., 200) to determine that it is a single level                   
+                        print('-Detemining that we need to process ',var_3dget,' to determine ',var_axis)
+                        
+                        da_axis = cam_2d_from_3d(var_axis,var_3dget,var_plev,file_suff=files_suff)
+                    else:
+
+                        print('Variable is not anywhere - do not know what to do...')
+                    
+
+                else: # File(s) exist!
+                    
+                    da_axis = xr.open_mfdataset(files_ls,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")[var_axis]
               
                 
         
@@ -225,7 +260,19 @@ def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file
             # Open them as multiple files
     
                 print('  - Slow read of h0a output...')
-                da_axis = xr.open_mfdataset(files_hist,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")[var_axis]
+
+                # Grab the h0a datasets.
+                ds_axis = xr.open_mfdataset(files_hist,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")
+
+
+                if lvar_from3d: # Test if the last 3 letters of the variable name are a digit (e.g., 200) to determine that it is a single level                   
+                    print('-Detemining that we need to process ',var_3dget,' to determine ',var_axis)
+                        
+                    da_axis = cam_2d_from_3d(var_axis,var_3dget,var_plev,ds_h0=ds)
+
+                else:
+
+                    da_axis = ds_axis[var_axis]
                 
     
                 print('  -Done')
@@ -405,6 +452,9 @@ def nino_anom_ts(da_axis,nino_reg,axis_vals):
 
 
 
+
+
+
 '''
     PLOTTING FUNCTIONS
 '''
@@ -441,6 +491,140 @@ def fig_domains(vname):
 
 
 
+
+
+
+
+
+''' 
+    Extract a single 2D pressure level slice fomr the 3D variable (e.g., U200 fomr U) 
+'''
+
+def cam_2d_From_3d(var_2d,var_3dget,var_plev,files_suff=None,ds_h0=None):
+
+# Variable requiring more than 1 timeseries file
+
+    var_derived = ['DIV']
+
+    
+    # Grab/read either data from CESM1/2 in single timeseries files or CESM3 data in a dataset of h0a files.
+
+    ''' CESM1/2 (tseries)'''
+
+    if files_suff is not None: # CESM1/2
+    
+        files_ps = files_suff.replace(var_2d, 'PS')
+        ds_ps = xr.open_mfdataset(files_ps,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")
+        
+        
+        # Swap in the 3D variable from the existing 2D variable in the files_suff.
+    
+        if var_2d not in var_derived: # General 3D -> 2D map
+    
+            files_var = files_suff.replace(var_2d, var3d_get) 
+            ds_var = xr.open_mfdataset(files_u,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")
+            
+            
+    
+        else: # Special cases
+    
+            if var_plev == 'DIV':
+    
+                files_u = files_suff.replace(var_2d, 'U')
+                files_v = files_suff.replace(var_2d, 'V')
+                
+                ds_u = xr.open_mfdataset(files_u,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")
+                ds_v = xr.open_mfdataset(files_v,parallel=True, combine="by_coords",data_vars="minimal", coords="minimal")
+            
+                da_uplev = get_plev_cam(ds_u,ds_ps,var_plev,'U') 
+                da_vplev = get_plev_cam(ds_v,ds_ps,var_plev,'V') 
+        
+      
+    
+    ''' CESM3 (h0a)'''   
+    
+    
+    if ds_h0 is not None:  # Mostly CESM3 development simulations (muich easier since we already have the Dataset.
+    
+        
+        if var_2d not in var_derived:  # General 3D -> 2D map
+    
+            da_varplev = get_plev_cam(ds_h0a,ds_h0a,var_plev,var_3dget)            
+    
+        else: # Special cases
+    
+            if var_plev == 'DIV':
+    
+                da_uplev = get_plev_cam(ds_h0a,ds_h0a,var_plev,'U') 
+                da_vplev = get_plev_cam(ds_h0a,ds_h0a,var_plev,'V') 
+        
+    
+    
+    return da_out
+        
+
+
+
+
+
+
+
+
+
+
+''' Interpolate a 3D field from CAM to a single pressure level(h0concatonation or timesries) '''
+
+
+def get_plev_cam(ds_var,ds_ps,var_plev,var_2interp):   
+    
+    import geocat.comp as gc
+
+    print('-Interpolating ',var_2interp,' to ',var_plev,' mb')
+ 
+    da_var = ds_var[var_2interp]
+ 
+    hyam = ds_var['hyam']  # hybrid A coefficiet
+    hybm = ds_var['hybm']  # hybrid B coefficient
+
+    da_ps = ds_ps['PS']
+    
+    if hyam.ndim == 2: hyam = hyam[0]
+    if hybm.ndim == 2: hybm = hybm[0]
+    
+    
+    # Interpolate pressure coordinates form hybrid sigma coord
+        
+    
+    print('- Interpolating')
+    da_var = gc.interp_hybrid_to_pressure(da_var,
+                          da_ps,
+                          hyam,
+                          hybm,
+                          p0=p0,
+                          new_levels=var_plev,
+                          method='log')
+    # Rename and swap variable name
+    da_var = da_var.rename(var_2d).squeeze()
+    da_var = da_var.rename({'plev': 'lev'})
+    
+    # Rescale to mb
+    da_var = da_var.assign_coords(lev=0.01*da_var.lev)
+
+#        print('- Unlazying...')
+#        with ProgressBar():
+#           da_out = da_var.compute()  # Turns into in-memory NumPy-backed array
+
+
+#        print('- Writing out...')
+#        da_out.to_netcdf(out_dir+out_file,mode="w")
+
+    display(da_var)
+     
+    print('Done')
+
+    
+    
+    return da_var
 
 
 

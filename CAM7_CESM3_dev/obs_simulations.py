@@ -109,6 +109,9 @@ def cam_revert_list():
     rl['CE3.170'] =  ['b.e30_beta06.B1850C_LTso.ne30_t232_wgx3.170']  
     rl['CE3.171'] =  ['b.e30_beta06.B1850C_LTso.ne30_t232_wgx3.171']
 
+    rl['CE3.185'] =  ['b.e30_beta06.B1850C_LTso.ne30_t232_wgx3.185']
+    rl['CE3.187'] =  ['b.e30_beta06.B1850C_LTso.ne30_t232_wgx3.187']
+
 
     rl['C7d.dcs.600'] =  ['f.e30_beta04.FLTHIST.ne30.dcs600.001']
     rl['C7d.dp1.0.05'] =  ['f.e30_beta04.FLTHIST.ne30.dp1_0.05.001']

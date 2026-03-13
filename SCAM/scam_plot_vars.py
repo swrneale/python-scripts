@@ -39,9 +39,11 @@ def scam_vars_grab():
     
     
     ## Variable to be plotted.
+
+#    vname = 'OMEGA'   ; vscale = 36. ; units2d='mb/hr' ; cmin = -20 ; cmax = 20. ; cmap = 'YlGnBu'; ovar2d = 'omega' ;ovscale2d = 36. 
     
 #    vname = 'RELHUM'   ; vscale = 1. ; units2d='%' ; cmin = 50 ; cmax = 120. ; cmap = 'YlGnBu'
- #   vname = 'Q'   ; vscale = 1000. ; units2d='g/kg' ; cmin = 0.001 ; cmax = 30. ; cmap = 'YlGnBu' ; ovar2d = 'q' ;ovscale2d = 1000. 
+    vname = 'Q'   ; vscale = 1000. ; units2d='g/kg' ; cmin = 0.001 ; cmax = 30. ; cmap = 'YlGnBu' ; ovar2d = 'q' ;ovscale2d = 1000. 
 #    vname = 'Q'   ; vscale = 1000. ; units2d='g/kg' ; cmin = 0.5 ; cmax = 1.5 ; cmap = 'YlGnBu' 
     
     #vname = 'MSE'   ; vscale = 1.e-6 ; units2d='10^6 J/kg' ; cmin = 0.34 ; cmax = 0.4 ; cmap = 'YlGnBu'
@@ -56,7 +58,7 @@ def scam_vars_grab():
     #vname = 'DLFZM' ; vscale = 1000.
 #    vname = 'QRS' ; vscale = 86400.
 
-    vname = 'QRL'   ; vscale = 86400. ; units2d='K/day' ; cmin = -10 ; cmax = 10. ; cmap = 'RdBu_r'
+#    vname = 'QRL'   ; vscale = 86400. ; units2d='K/day' ; cmin = -10 ; cmax = 10. ; cmap = 'RdBu_r'
     
 #    vname = 'ZMDQ'   ; vscale = 1000.*86400. ; units2d='g/kg/day' ; cmin = -6 ; cmax = 6. ; cmap = 'RdBu'
 #    vname = 'ZMDQ'   ; vscale = 1000.*86400. ; units2d='g/kg/day' ; cmin = 0.2 ; cmax = 1.8 ; cmap = 'RdBu'
@@ -96,24 +98,30 @@ def scam_vars_grab():
     
 #    vname1d = 'SHFLX' ; vscale1d = 1. ; units1d='W/m^2' ; pmin = 0. ; pmax= 20.
 #    vname1d = 'LHFLX' ; vscale1d = 1. ;  units1d='W/m^2' ; pmin = 0. ; pmax= 300.  ; ovar1d = 'lhflx' ; ovscale1d = 1. 
-    #vname1d = 'U10' ; vscale1d = 1. ;  units1d='m/s' ; pmin = 0. ; pmax= 10.
+#    vname1d = 'U10' ; vscale1d = 1. ;  units1d='m/s' ; pmin = 0. ; pmax= 10.
     #vname1d = 'TAUX' ; vscale1d = 1. ;  units1d='kg/m^2/s' ; pmin = -0.2 ; pmax= 0.0
     #vname1d = 'ZBOT' ; vscale1d = 1. ;  units1d='m' ; pmin = 0. ; pmax= 150.
-#    vname1d = 'PRECT' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0.01 ; pmax= 60. ; ovar1d = 'Prec' ; ovscale1d = 86400. 
+    vname1d = 'PRECT' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0.01 ; pmax= 60. ; ovar1d = 'Prec' ; ovscale1d = 86400. 
      
     
 #    vname1d = 'PRECZ' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
-    vname1d = 'PRECC' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
+#    vname1d = 'PRECC' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
+#    vname1d = 'TS' ; vscale1d = 1. ;  units1d='K' ; pmin = 270. ; pmax= 300.
 #    vname1d = 'PRECL' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
 #    vname1d = 'PRECT' ; vscale1d = 1. ;  units1d='J/kg' ; pmin = 0. ; pmax= 1000.
+#    vname1d = 'TMQ' ; vscale1d = 1. ;  units1d='mm' ; pmin = 10. ; pmax= 150.
 #    vname1d = 'CAPE' ; vscale1d = 1. ;  units1d='J/kg' ; pmin = 0. ; pmax= 1000.    
 #    vname1d = 'TLCL' ; vscale1d = 1. ;  units1d='K' ; pmin = 280. ; pmax= 300.
 #    vname1d = 'PLCL' ; vscale1d = 1. ;  units1d='mb' ; pmin = 800. ; pmax= 1000.
 #    vname1d = 'LEL' ; vscale1d = 1. ;  units1d='mb' ; pmin = 50. ; pmax= 1000.
-#    vname1d = 'KHMAX' ; vscale1d = 1. ;  units1d='level' ; pmin = 850. ; pmax= 1000.
+#    vname1d = 'KHMAX' ; vscale1d = 1. ;  units1d='level' ; pmin = 1. ; pmax= 60.
 #    vname1d = 'PKHMAX' ; vscale1d = 1. ;  units1d='pressure' ; pmin = 800. ; pmax= 1050. # Pressure location of KHMAX
 #    vname1d = 'PBLH' ; vscale1d = 1. ;  units1d='meters' ; pmin = 50. ; pmax= 4000. # Pressure location of KHMAX
     #vname1d = 'TKE&IC' ; vscale1d = 1. ;  units1d='meters' ; pmin = 0. ; pmax= 40. # Pressure location of KHMAX
+#    vname1d = 'FLNT' ; vscale1d = 1. ; units1d='W/m^2' ; pmin = 100. ; pmax= 300.
+#    vname1d = 'FSNT' ; vscale1d = 1. ; units1d='W/m^2' ; pmin = 100. ; pmax= 300.
+#    vname1d = 'FSNTC' ; vscale1d = 1. ; units1d='W/m^2' ; pmin = 100. ; pmax= 400.
+#    vname1d = 'FLNTC' ; vscale1d = 1. ; units1d='W/m^2' ; pmin = 100. ; pmax= 400.
 #    vname1d = 'LWCF' ; vscale1d = 1. ;  units1d='W/m^2' ; pmin = 0. ; pmax = 100.
     
     #vname1d = 'CLDLOW' ; vscale1d = 1.

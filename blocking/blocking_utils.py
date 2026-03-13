@@ -134,8 +134,12 @@ def find_ens_info(ens_names,mem_num,ystart,yend):
                 ens_type = 'model'
                 dir_ens0 = '/glade/derecho/scratch/rneale/archive/'
 #                file_templates = [(dir_ens0+this_run+'/atm/hist/'+this_run+'.'+cmodel+'.h2a.*.nc') for this_run in run_names]
-                file_templates = [(dir_ens0+this_run+'/tseries/'+this_run+'_dmeans_ts_Z500.nc') for this_run in run_names]    
-                ens_name = 'CESM3'
+                file_templates = [(dir_ens0+this_run+'/tseries/'+this_run+'_dmeans_ts_Z500.nc') for this_run in run_names]   
+                
+                if ens_name == 'b.e30_alpha07g.BHISTC_LTso.ne30_t232_wgx3.271':
+                    ens_name = 'CESM3-271'
+                else:
+                    ens_name = 'CESM3-276'
         
             case ens_name if ens_name in obs_sources:
                 
@@ -155,11 +159,11 @@ def find_ens_info(ens_names,mem_num,ystart,yend):
         all_ens_info[ens_name] = [ens_type,mem_num[iens],ystart[iens],yend[iens],run_names,file_templates]  
 
     
-    pprint.pprint(all_ens_info)
+#    pprint.pprint(all_ens_info)
 
     df_info = pd.DataFrame.from_dict(all_ens_info, orient='index',columns=['Ensemble Type','Ensemble Size','Start Year','End Year','Run Name','Run File'])
 #    df_info = pd.DataFrame(data=all_ens_info)
-    display(df_info)
+#    display(df_info)
     
     return df_info
 
@@ -208,7 +212,7 @@ def dataset_get(block_meta,var_name,season,diag_hem):
         print(fname+ 'Requested year range : ',year_start,'-',year_end)
 
         # Chunk sizes
-        chunk_sizes = {'time': 365, 'latitude': 360, 'longitude': 180}
+        chunk_sizes = {'time': 365, 'latitude': -1, 'longitude': -1}
         
         
         # Grab each dataset separately (will require some work for CESM2 as they are in decadal files.)
@@ -360,7 +364,7 @@ def block_z500_freq(block_meta,ens_ds,bseason,block_diag=None,file_opts='x'):
         
         
         
-        if file_opts in ['w','x']: # Do not calculated if just reading in.
+        if file_opts in ['w','x']: # Do not calculate if just reading in.
 
         
             ds_this_ens = ens_ds[ens_name]

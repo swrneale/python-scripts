@@ -27,8 +27,9 @@ import time
 
 
 # Fig (png) output directory.
-dir_fig = '/glade/u/home/rneale/python/python-figs/blocking/' 
+#dir_fig = '/glade/u/home/rneale/python/python-figs/blocking/' 
 
+dir_fig = '/glade/u/home/rneale/python/python-figs//' 
 
 ###################################################################################################### 
 #  Plot 1D blocking %age for each longitude and for each ensemble set (which includes observations)
@@ -201,6 +202,9 @@ def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True
 
     ens_names = list(block_meta.index)
     nens = len(ens_names)
+
+    ens_ystarts =  block_meta['Start Year'].values
+    ens_yends =  block_meta['End Year'].values
     
     # Createplot of a stereographic projection centered over the North Pole
     projection = ccrs.NorthPolarStereo()
@@ -214,7 +218,7 @@ def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True
     
     fig, ax0 = mp.subplots(nrows,ncols,subplot_kw={'projection': projection}, figsize=figsize,constrained_layout=True)
 
-    
+#    ax0.set_extent([-180, 180, 60, 90], crs=ccrs.PlateCarree())
 
     # Flattedn and trikm aaxes if needed
 
@@ -227,10 +231,11 @@ def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True
 #    norm = Normalize(vmin=min(bcontours), vmax=max(bcontours))
     norm = BoundaryNorm(boundaries=bcontours, ncolors=256)
     
-    colors = ['white', 'cyan', 'cornflowerblue','blue','green','darkgreen', 'yellow','gold', 'orange', 'red', 'darkred','lightpink','hotpink','magenta']
+    colors = [(1, 1, 1, 0), 'cyan', 'cornflowerblue','blue','green','darkgreen', 'yellow','gold', 'orange', 'red', 'darkred','lightpink','hotpink','magenta']
     cmapb = LinearSegmentedColormap.from_list('custom_colormap', colors, N=256)
+
     
-    text_size_percentage = 2
+    text_size_percentage = 3
     text_size = ncols*100.*text_size_percentage / fig.get_size_inches()[0]
   
 
@@ -269,9 +274,24 @@ def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True
             iens_lon = da_iens_ave.lon
     
             # Lon wrapping grid point for plotting
-    
-#            iens_ave_cyc, iens_lon_cyc = add_cyclic_point(da_iens_ave, iens_lon)
-            iens_ave_cyc, iens_lon_cyc = da_iens_ave,iens_lon                                         
+
+
+            if ens_name == 'MERRA':
+                lon_dim = 'lon'
+                lon = iens_lon[lon_dim].values % 360
+                sort_idx = np.argsort(lon)
+                lon_sorted = lon[sort_idx]
+                da_sorted = da_iens_ave.isel({lon_dim: sort_idx})
+                
+                # Create new regular lon grid
+                dlon = np.round(np.median(np.diff(lon_sorted)), 6)  # preserve spacing
+                iens_lon = np.arange(0, 360, dlon)                   # exact 0-360 grid
+                
+                # Interpolate to new grid
+                da_iens_ave = da_sorted.interp({lon_dim: iens_lon}, kwargs={"fill_value": "extrapolate"})
+            
+            iens_ave_cyc, iens_lon_cyc = add_cyclic_point(da_iens_ave,iens_lon)
+
             
             # Have to recast as DataArrays - annoying.
             
@@ -289,10 +309,11 @@ def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True
     
             ax_all = ax.contourf(iens_lon_cyc,iens_lat, iens_ave_cyc, levels=bcontours,norm=norm,transform=ccrs.PlateCarree(),cmap=cmapb,extend='max')   
     
-            ax.coastlines()
+            ax.coastlines(linewidth=2,color='black',resolution='110m')
             gl = ax.gridlines(color='C7',lw=1,ls=':',draw_labels=True,rotate_labels=False,ylocs=[40,60,80])
+            ax.add_feature(cfeature.LAND, facecolor='silver')
             gl.xlabel_style = {'size': text_size*0.5}
-            gl.ylabel_style = {'size': text_size*0.5}
+#            gl.ylabel_style = {'size': text_size*0.5}
     
            
             polarCentral_set_latlim((40,90),ax)
@@ -304,7 +325,7 @@ def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True
     
     # Specify the position of the colorbar
 
-    fig.suptitle('Blocking Frequency (%) - '+ block_season, fontsize=text_size,ha='center',va='bottom')
+   
     
 #    fig.subplots_adjust(right=0.93,wspace=0.2, hspace=5)
 #    cbar_ax = fig.add_axes([0.95, 0.27, 0.03, 0.36])
@@ -312,14 +333,34 @@ def block_plot_2d(block_meta,ens_block_2d,block_season,ens_plot='0',fig_out=True
 #    cbar_ax.set_title('%',fontsize=text_size)
 #    cbar_ax.tick_params(labelsize=text_size*0.5)
 
-
+    
     
     cbar = fig.colorbar(ax_all, ax=ax0[:, ncols-1], ticks=bcontours,location='right', shrink=0.25)
 
 #    fig.tight_layout()
+
+     # Output figure
+
+    # Add years into title if common.
     
+    if (min(ens_ystarts) == max(ens_ystarts) and min(ens_yends) == max(ens_yends)): 
+        yr_title = ' (yrs: '+ens_ystarts[0]+' - '+ens_yends[0]+')  '
+        fig_mid_text = '_' + ens_ystarts[0]+ '-' + ens_yends[0]        
+    else:
+        yr_title = ' '
+        fig_mid_text = ' ' 
     
-    tstart = time.time()
+
+    fig.suptitle('Blocking Frequency (%) - '+ block_season + yr_title, fontsize=text_size,ha='center',va='bottom')
+  # Output figure
+    
+    if fig_out: 
+        fig_mid_text = '_' + ens_ystarts[0]+ '-' + ens_yends[1]
+        mp.savefig(dir_fig + 'block_2d_freq_' + "_".join(ens_names) + fig_mid_text + '_' +block_season+'.png',dpi=80,bbox_inches="tight")
+
+
+    
+#    tstart = time.time()
 
     return
 

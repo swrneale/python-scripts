@@ -76,6 +76,7 @@ def return_common_loc(case_type,case_dir,run_name,var_name,time_freq):
             
         if any(x in case_type for x in ['CAM7','CESM3']):
             case_loc = case_dir+'/'+run_name+'/tseries/'+run_name+'_clim_dmeans_ts_'+var_name+'.nc'
+            print(case_loc)
     
     return case_loc
 
