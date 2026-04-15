@@ -1,0 +1,33 @@
+#!/bin/bash
+#PBS -N dtdt_param
+#PBS -A P03010039
+#PBS -q casper
+#PBS -l select=1:ncpus=1:mem=8GB
+#PBS -l walltime=01:00:00
+#PBS -J 1980-2012
+#PBS -o /glade/derecho/scratch/rneale/ERA5/mmean/1deg/dtdt_param/logs/dtdt_param.o%J.%I
+#PBS -e /glade/derecho/scratch/rneale/ERA5/mmean/1deg/dtdt_param/logs/dtdt_param.e%J.%I
+#PBS -j oe
+
+# PBS array job: one job per year (1980–2012, since 1979 is already done)
+# Submit with: qsub era5_dtdt_param_submit.pbs
+# (Resubmit as -J 1979-2012 if you want to redo 1979 too)
+#
+# After all jobs complete, run:
+#   conda run -n npl python era5_dtdt_param_concat.py
+
+YEAR=${PBS_ARRAY_INDEX}
+SCRIPT_DIR=/glade/work/rneale/git/python-scripts/papers/ENSO_vprocs_fbacks/claude_code
+
+echo "Processing year ${YEAR} on $(hostname) at $(date)"
+mkdir -p /glade/derecho/scratch/rneale/ERA5/mmean/1deg/dtdt_param/logs
+
+# Activate npl conda environment
+source /glade/u/apps/opt/conda/etc/profile.d/conda.sh 2>/dev/null || \
+    source /glade/u/apps/opt/miniforge/latest/etc/profile.d/conda.sh 2>/dev/null || \
+    eval "$(/glade/u/apps/opt/miniforge/latest/bin/conda shell.bash hook)"
+conda activate npl
+
+python ${SCRIPT_DIR}/era5_dtdt_param_process.py ${YEAR}
+
+echo "Done: year ${YEAR} at $(date)"

@@ -1,0 +1,9 @@
+Warning: no access to tty (Inappropriate ioctl for device).
+Thus no job control in this shell.
+
+CondaError: Run 'conda init' before 'conda activate'
+
+Traceback (most recent call last):
+  File "/glade/work/rneale/git/python-scripts/papers/ENSO_vprocs_fbacks/claude_code/merra2_div_compute.py", line 17, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'

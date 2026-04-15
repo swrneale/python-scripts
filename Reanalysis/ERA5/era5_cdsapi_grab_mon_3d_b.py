@@ -3,8 +3,8 @@ import cdsapi
 
 
 
-yr0 = 1979
-yr1 = 2023
+yr0 = 1940
+yr1 = 1979
 
 #var_3d = "u"  ; var_3d_name = "u_component_of_wind"
 #var_3d = "v"  ; var_3d_name = "v_component_of_wind"
@@ -13,8 +13,9 @@ yr1 = 2023
 #var_3d = "q" ; var_3d_name = "specific_humidity"
 #var_3d = "z" ; var_3d_name = "geopotential"
 #var_3d = "rh" ; var_3d_name = "relative_humidity"
-var_3d = "div" ; var_3d_name = "divergence"
-
+#var_3d = "div" ; var_3d_name = "divergence"
+var_3d = "cloud" ; var_3d_name = "fraction_of_cloud_cover"
+#var_3d = "vort" ; var_3d_name = "vorticity"
 
 
 

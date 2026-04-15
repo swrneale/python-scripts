@@ -1,0 +1,14 @@
+#!/bin/bash
+#PBS -N merra2_div
+#PBS -A P03010039
+#PBS -q main
+#PBS -l select=1:ncpus=1:mem=64GB
+#PBS -l walltime=02:00:00
+#PBS -j oe
+#PBS -o merra2_div.log
+
+conda activate neale_vproc2
+
+cd /glade/work/rneale/git/python-scripts/papers/ENSO_vprocs_fbacks/claude_code
+
+python merra2_div_compute.py

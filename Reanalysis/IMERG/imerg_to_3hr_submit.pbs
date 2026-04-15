@@ -1,0 +1,33 @@
+#!/bin/bash
+#PBS -N imerg_3hr
+#PBS -A P03010039
+#PBS -q casper
+#PBS -l select=1:ncpus=2:mem=24GB
+#PBS -l walltime=04:00:00
+#PBS -J 1-12
+#PBS -o /glade/derecho/scratch/rneale/imerg_tmp/logs/imerg_3hr.o%J_%I
+#PBS -e /glade/derecho/scratch/rneale/imerg_tmp/logs/imerg_3hr.e%J_%I
+
+# PBS array job: one job per month
+# Default year is 2024; override with: qsub -v YEAR=2023 imerg_to_3hr_submit.pbs
+# Submit: qsub imerg_to_3hr_submit.pbs
+# Submit for specific year: qsub -v YEAR=2023 imerg_to_3hr_submit.pbs
+
+YEAR=${YEAR:-2024}
+MONTH=${PBS_ARRAY_INDEX}
+SCRIPT_DIR=/glade/work/rneale/git/python-scripts/Reanalysis/IMERG
+
+echo "Processing IMERG ${YEAR}-$(printf '%02d' ${MONTH}) on $(hostname) at $(date)"
+mkdir -p /glade/derecho/scratch/rneale/imerg_tmp/logs
+mkdir -p /glade/derecho/scratch/rneale/IMERG/3hrly/0.25deg
+mkdir -p /glade/derecho/scratch/rneale/IMERG/3hrly/1deg
+
+# Activate npl conda environment
+source /glade/u/apps/opt/conda/etc/profile.d/conda.sh 2>/dev/null || \
+    source /glade/u/apps/opt/miniforge/latest/etc/profile.d/conda.sh 2>/dev/null || \
+    eval "$(/glade/u/apps/opt/miniforge/latest/bin/conda shell.bash hook)"
+conda activate npl
+
+python ${SCRIPT_DIR}/imerg_to_3hr_process.py ${YEAR} ${MONTH}
+
+echo "Done: ${YEAR}-$(printf '%02d' ${MONTH}) at $(date)"
