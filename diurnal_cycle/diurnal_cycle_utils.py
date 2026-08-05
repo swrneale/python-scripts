@@ -277,10 +277,27 @@ def load_imerg_composite(data_dir, year_start, year_end, season='DJF',
 # CAM / CESM diurnal cycle loader
 # ---------------------------------------------------------------------------
 
+# Per-variable configuration for CAM/CESM history file variables.
+#   varnames : tuple of history variable names to sum (allows PRECC+PRECL)
+#   scale    : multiplier applied to that sum to reach display units
+#   units    : display units after scaling
+CAM_VARS = {
+    'precip': {'varnames': ('PRECT',),  'scale': 86400.0 * 1000.0,
+               'units': 'mm/day', 'long_name': 'Total precipitation'},
+    'cape':   {'varnames': ('CAPE',),   'scale': 1.0,
+               'units': 'J/kg',   'long_name': 'CAPE'},
+    'lhflx':  {'varnames': ('LHFLX',),  'scale': 1.0,
+               'units': 'W/m^2',  'long_name': 'Surface latent heat flux'},
+    'shflx':  {'varnames': ('SHFLX',),  'scale': 1.0,
+               'units': 'W/m^2',  'long_name': 'Surface sensible heat flux'},
+}
+
+
 def load_cam_composite(data_dir, case_name, hist_type='h3a',
                        year_start=None, year_end=None,
                        season='DJF', dt_hours=3,
-                       precip_vars=('PRECC', 'PRECL')):
+                       precip_vars=('PRECC', 'PRECL'),
+                       var='precip'):
     """
     Load CAM/CESM sub-daily history files and compute a seasonal diurnal composite.
 
@@ -295,14 +312,23 @@ def load_cam_composite(data_dir, case_name, hist_type='h3a',
     year_start, year_end : int  inclusive year range; None = all years
     season : str  season string (e.g. 'DJF', 'JJA', 'ANN')
     dt_hours : float  time step in hours (3 for h3a; set to match hist_type)
-    precip_vars : tuple of str  variable names to sum for total precipitation [m/s]
-        Default ('PRECC','PRECL') sums convective + large-scale precip.
-        Use ('PRECT',) if a combined variable is present.
+    precip_vars : tuple of str  history variable names to sum when var='precip'.
+        Overrides CAM_VARS['precip']['varnames']. Use ('PRECT',) for total, or
+        ('PRECC','PRECL') to sum convective+large-scale.
+    var : {'precip','cape','lhflx','shflx'}
+        Selects the field to composite (see CAM_VARS for name/scaling/units).
 
     Returns
     -------
-    dc : xr.DataArray (time_of_day, lat, lon)  mm/day composite
+    dc : xr.DataArray (time_of_day, lat, lon) in the variable's display units.
     """
+    if var not in CAM_VARS:
+        raise ValueError(f"Unknown CAM var '{var}'. Choose from: {list(CAM_VARS)}")
+    vcfg     = CAM_VARS[var]
+    varnames = precip_vars if var == 'precip' else vcfg['varnames']
+    scale    = vcfg['scale']
+    units    = vcfg['units']
+
     n_tod = int(24 // dt_hours)
     tod   = np.arange(n_tod, dtype=float) * dt_hours
 
@@ -342,9 +368,8 @@ def load_cam_composite(data_dir, case_name, hist_type='h3a',
     lat_vals = ds['lat'].values
     lon_vals = ds['lon'].values
 
-    # Total precipitation: sum requested variables and convert m/s → mm/day
-    scale = 86400.0 * 1000.0
-    prec  = sum(ds[v] for v in precip_vars).astype(np.float32) * scale
+    print(f'  var={var}  history vars={varnames}  scale=×{scale:g}  units={units}')
+    da = sum(ds[v] for v in varnames).astype(np.float32) * scale
 
     # Seasonal mask
     months, _ = get_season_months(season)
@@ -355,45 +380,89 @@ def load_cam_composite(data_dir, case_name, hist_type='h3a',
         seas_mask = xr.ones_like(ds['time.month'], dtype=bool)
     print(f'  Season {season}: {n_seas} steps selected')
 
-    prec_seas = prec.isel(time=seas_mask)
+    da_seas = da.isel(time=seas_mask)
 
     # Diurnal composite
     print('  Computing diurnal composite via dask groupby...')
-    dc_grouped = prec_seas.groupby('time.hour').mean('time')
+    dc_grouped = da_seas.groupby('time.hour').mean('time')
     dc_vals    = dc_grouped.compute().values
     ds.close()
 
-    # Ensure output is sorted 0, dt, 2*dt, ...
+    # Sort by hour and use the ACTUAL hours in the file as the tod coord.
+    # Some CAM tapes (e.g. h2a) sit at 01:30, 04:30, ..., 22:30 UTC rather
+    # than 00, 03, ..., 21 UTC — using tod=np.arange(...)*dt_hours would
+    # phase-shift the diurnal composite by up to dt_hours/2.
     hours_out = dc_grouped['hour'].values
     sort_idx  = np.argsort(hours_out)
     dc_vals   = dc_vals[sort_idx]
+    tod       = hours_out[sort_idx].astype(float)
+    print(f'  CAM composite time_of_day (UTC): {tod}')
 
     return xr.DataArray(dc_vals, dims=['time_of_day', 'lat', 'lon'],
                         coords={'time_of_day': tod,
                                 'lat': lat_vals, 'lon': lon_vals},
-                        attrs={'units': 'mm/day', 'season': season,
-                               'case': case_name, 'hist_type': hist_type})
+                        attrs={'units': units, 'season': season,
+                               'case': case_name, 'hist_type': hist_type,
+                               'var': var, 'long_name': vcfg['long_name']})
 
 
 # ---------------------------------------------------------------------------
 # ERA5 diurnal cycle loader
 # ---------------------------------------------------------------------------
 
+# Per-variable configuration for the ERA5 3-hourly clean_3hr composites.
+#   data_varname : name of the variable inside the netCDF clean file
+#   file_prefix  : filename prefix in <base>/<var>/clean_3hr/{prefix}_YYYY_era5_3hr_clean.nc
+#   scale        : multiplier applied when loading (converts to display units)
+#   units        : display units after scaling
+#   long_name    : human-readable name for plot titles / DataArray attrs
+#
+# NOTE: sign for latent/sensible heat flux is flipped to upward-positive in the
+# CDO pipeline (make_3hr_composites.pbs in each var directory), matching CAM's
+# LHFLX/SHFLX convention.
+ERA5_VARS = {
+    'precip': {'data_varname': 'tp',   'file_prefix': 'precip',
+               'scale': 86400.0, 'units': 'mm/day',
+               'long_name': 'Total precipitation'},
+    'cape':   {'data_varname': 'cape', 'file_prefix': 'cape',
+               'scale': 1.0,     'units': 'J/kg',
+               'long_name': 'CAPE'},
+    'lhflx':  {'data_varname': 'slhf', 'file_prefix': 'lhflx',
+               'scale': 1.0,     'units': 'W/m^2',
+               'long_name': 'Surface latent heat flux (upward-positive)'},
+    'shflx':  {'data_varname': 'sshf', 'file_prefix': 'shflx',
+               'scale': 1.0,     'units': 'W/m^2',
+               'long_name': 'Surface sensible heat flux (upward-positive)'},
+}
+
+
 def load_era5_composite(fpath, season='DJF', scale_mmday=True, dt_hours=3,
-                        year_start=None, year_end=None):
+                        year_start=None, year_end=None, var='precip'):
     """
-    Load ERA5 3-hourly precipitation file(s) and compute a seasonal diurnal composite.
+    Load ERA5 3-hourly clean_3hr file(s) and compute a seasonal diurnal composite.
 
     fpath can be:
-      - A directory of precip_YYYY_era5_3hr_clean.nc files (dask-optimised path:
+      - A directory of {prefix}_YYYY_era5_3hr_clean.nc files (dask-optimised path:
         data stays chunked and lazy; groupby.mean triggers distributed compute)
       - A single file path (numpy path; used for legacy _3hrave.nc files with
-        corrupted timestamps)
+        corrupted timestamps — precip only)
+
+    var : {'precip','cape','lhflx','shflx'}
+        Selects the variable config in ERA5_VARS (data variable name, filename
+        prefix, unit scaling). Default 'precip' preserves the legacy behaviour.
 
     year_start / year_end filter the directory file list (default = all).
+    scale_mmday=False disables the units-scaling multiplier (keeps native units).
 
-    Returns xr.DataArray (time_of_day, lat, lon) in mm/day.
+    Returns xr.DataArray (time_of_day, lat, lon) in the variable's display units.
     """
+    if var not in ERA5_VARS:
+        raise ValueError(f"Unknown ERA5 var '{var}'. Choose from: {list(ERA5_VARS)}")
+    vcfg     = ERA5_VARS[var]
+    varname  = vcfg['data_varname']
+    prefix   = vcfg['file_prefix']
+    unit_scale = vcfg['scale'] if scale_mmday else 1.0
+    disp_units = vcfg['units'] if scale_mmday else 'native'
     import glob, os
 
     n_tod = int(24 // dt_hours)   # 8 for 3-hourly
@@ -403,10 +472,10 @@ def load_era5_composite(fpath, season='DJF', scale_mmday=True, dt_hours=3,
     # PATH A: directory of per-year clean files  →  dask-native
     # =================================================================
     if os.path.isdir(fpath):
-        pattern   = os.path.join(fpath, 'precip_*_era5_3hr_clean.nc')
+        pattern   = os.path.join(fpath, f'{prefix}_*_era5_3hr_clean.nc')
         all_files = sorted(glob.glob(pattern))
         if not all_files:
-            raise FileNotFoundError(f'No precip_*_era5_3hr_clean.nc in {fpath}')
+            raise FileNotFoundError(f'No {prefix}_*_era5_3hr_clean.nc in {fpath}')
 
         def _year(f): return int(os.path.basename(f).split('_')[1])
         files = [f for f in all_files
@@ -414,22 +483,9 @@ def load_era5_composite(fpath, season='DJF', scale_mmday=True, dt_hours=3,
                  and (year_end   is None or _year(f) <= year_end)]
         if not files:
             raise ValueError(f'No files in year range {year_start}–{year_end}')
-        print(f'  ERA5 directory: {len(files)} files  '
+        print(f'  ERA5 {var} directory: {len(files)} files  '
               f'({_year(files[0])}–{_year(files[-1])})')
-
-        # Detect units from history of first file (small metadata read)
-        with xr.open_dataset(files[0], decode_times=False) as ds0:
-            history = ds0.attrs.get('history', '')
-        if scale_mmday:
-            if 'divc,3600' in history and 'mulc,1000' in history:
-                scale = 86400.0
-                print(f'  CDO history: mm/s units → scale=×{scale:.0f}')
-            elif 'divc,3600' in history:
-                scale = 86400.0 * 1000.0
-            else:
-                scale = (1000.0 / dt_hours) * 24.0
-        else:
-            scale = 1.0
+        print(f'  var={varname}  scale=×{unit_scale:g}  units={disp_units}')
 
         # Open all files lazily with dask chunks (~1 month of 3-hourly per chunk)
         ds = xr.open_mfdataset(
@@ -451,7 +507,7 @@ def load_era5_composite(fpath, season='DJF', scale_mmday=True, dt_hours=3,
         lon_vals = ds['lon'].values
 
         # Scale lazily — no data loaded yet
-        tp = (ds['tp'] * scale).astype(np.float32)
+        da = (ds[varname] * unit_scale).astype(np.float32)
 
         # Seasonal filter: boolean index along time (still lazy)
         months, _ = get_season_months(season)
@@ -462,11 +518,11 @@ def load_era5_composite(fpath, season='DJF', scale_mmday=True, dt_hours=3,
             seas_mask = xr.ones_like(ds['valid_time.month'], dtype=bool)
         print(f'  Season {season}: {n_seas} steps selected')
 
-        tp_seas = tp.isel(valid_time=seas_mask)
+        da_seas = da.isel(valid_time=seas_mask)
 
         # Group by UTC hour → mean over all matching days  (distributed compute)
         print(f'  Computing diurnal composite via dask groupby...')
-        dc_grouped = tp_seas.groupby('valid_time.hour').mean('valid_time')
+        dc_grouped = da_seas.groupby('valid_time.hour').mean('valid_time')
         dc_vals    = dc_grouped.compute().values   # (n_tod, nlat, nlon)
         ds.close()
 
@@ -478,7 +534,8 @@ def load_era5_composite(fpath, season='DJF', scale_mmday=True, dt_hours=3,
         return xr.DataArray(dc_vals, dims=['time_of_day', 'lat', 'lon'],
                             coords={'time_of_day': tod,
                                     'lat': lat_vals, 'lon': lon_vals},
-                            attrs={'units': 'mm/day', 'season': season})
+                            attrs={'units': disp_units, 'season': season,
+                                   'var': var, 'long_name': vcfg['long_name']})
 
     # =================================================================
     # PATH B: single legacy file  →  numpy (file is small, ~750 MB)
@@ -512,20 +569,9 @@ def load_era5_composite(fpath, season='DJF', scale_mmday=True, dt_hours=3,
         print(f'  NOTE: valid_time hours corrupted '
               f'({unique_hours}). Using positional index.')
 
-    # Unit scale from CDO history
-    history = ds.attrs.get('history', '')
-    if scale_mmday:
-        if 'divc,3600' in history and 'mulc,1000' in history:
-            scale = 86400.0
-            print(f'  CDO history: mm/s units → scale=×{scale:.0f}')
-        elif 'divc,3600' in history:
-            scale = 86400.0 * 1000.0
-        else:
-            scale = (1000.0 / dt_hours) * 24.0
-    else:
-        scale = 1.0
-
-    tp_vals  = ds['tp'].values.astype(np.float32) * scale
+    # Legacy path only supports precip — the _3hrave.nc single-file layout
+    # doesn't exist for cape/lhflx/shflx. Fall back to the same var config.
+    tp_vals  = ds[varname].values.astype(np.float32) * unit_scale
     lat_vals = ds['lat'].values
     lon_vals = ds['lon'].values
     ds.close()
@@ -557,7 +603,8 @@ def load_era5_composite(fpath, season='DJF', scale_mmday=True, dt_hours=3,
     return xr.DataArray(dc, dims=['time_of_day', 'lat', 'lon'],
                         coords={'time_of_day': tod,
                                 'lat': lat_vals, 'lon': lon_vals},
-                        attrs={'units': 'mm/day', 'season': season})
+                        attrs={'units': disp_units, 'season': season,
+                               'var': var, 'long_name': vcfg['long_name']})
 
 
 # ---------------------------------------------------------------------------
@@ -700,7 +747,8 @@ def _phase_to_rgba(phase_lst, amplitude, min_amp, max_amp, period_hours,
 def draw_color_wheel(ax_polar, period_hours, min_amp, max_amp,
                      hue_offset=0.5, n_seg=360, n_rad=60,
                      label_hours=None, tick_hours=None, fontsize=10,
-                     discrete=False, dt_hours=3, n_amp_disc=10, deepen_val=0.82):
+                     discrete=False, dt_hours=3, n_amp_disc=10, deepen_val=0.82,
+                     amp_units='mm/d'):
     """
     Fill a pre-created polar axes with the Evans-style color wheel.
 
@@ -813,7 +861,7 @@ def draw_color_wheel(ax_polar, period_hours, min_amp, max_amp,
                   fontsize=(fontsize - 1) * 1.3, color='black', fontweight='bold')
 
     # Unit label above the wheel — bold
-    ax_polar.text(0., r_outer + 0.52, 'mm/d', ha='center', va='center',
+    ax_polar.text(0., r_outer + 0.52, amp_units, ha='center', va='center',
                   fontsize=(fontsize - 1) * 1.3, color='dimgrey', fontweight='bold',
                   transform=ax_polar.transData)
 
@@ -880,7 +928,7 @@ def plot_evans_map(ax, fig, phase_lst, amplitude, lat, lon,
                    hue_offset=0.5, lat_range=(-40., 40.), lon_range=(0., 360.),
                    ax_wheel=None, wheel_fontsize=8,
                    discrete_wheel=False, dt_hours=3, n_amp_disc=10, deepen_val=0.82,
-                   show_states=False):
+                   show_states=False, amp_units='mm/d'):
     """
     Evans-style map: phase → hue, amplitude → color saturation.
 
@@ -979,7 +1027,8 @@ def plot_evans_map(ax, fig, phase_lst, amplitude, lat, lon,
                      label_hours=label_hours, tick_hours=tick_hours,
                      fontsize=wheel_fontsize,
                      discrete=discrete_wheel, dt_hours=dt_hours,
-                     n_amp_disc=n_amp_disc, deepen_val=deepen_val)
+                     n_amp_disc=n_amp_disc, deepen_val=deepen_val,
+                     amp_units=amp_units)
 
     return ax_wheel
 
@@ -1246,6 +1295,7 @@ def annotate_regions_on_map(ax, regions,
                 lon_box may be in 0-360 convention.
     linestyle : str  matplotlib linestyle (e.g. '-', '--', ':', '-.')
     """
+   
     for reg in regions:
         lat_b0, lat_b1 = reg['lat_box']
         lon_b0, lon_b1 = reg['lon_box']
@@ -1295,7 +1345,8 @@ def plot_diurnal_region_group(dc, lat, lon, regions,
                                inset_map_extent=None,
                                land_mask=None,
                                show_states=False,
-                               ylim=None):
+                               ylim=None,
+                               y_units='mm day⁻¹'):
     """
     Panel of regional-mean diurnal cycle line plots with harmonic overlays.
 
@@ -1432,7 +1483,7 @@ def plot_diurnal_region_group(dc, lat, lon, regions,
         ax.set_xlim(0., 24.)
         ax.set_xticks([0, 6, 12, 18, 24])
         ax.set_xlabel('LST hour', fontsize=8)
-        ax.set_ylabel('mm day⁻¹', fontsize=8)
+        ax.set_ylabel(y_units, fontsize=8)
         ax.tick_params(labelsize=8)
         if ylim is not None:
             ax.set_ylim(ylim)

@@ -8,8 +8,8 @@ def scam_cases_grab():
 
 
 
-    iop_case = 'togaII'
-#    iop_case = 'gateIII' 
+#    iop_case = 'togaII'
+    iop_case = 'gateIII' 
 #    iop_case = 'arm95' 
 #    iop_case = 'arm97'
 
@@ -30,7 +30,7 @@ def scam_cases_grab():
 
 #    fig_pref = 'zm_cam7_pbl_sens_noise'
 #   fig_pref = 'zm_cam7_pbl_sens_noise_smthd'
-    fig_pref = 'zm_cam7_ic_check'
+    fig_pref = 'zmpbl_paperx_c6'
 #    fig_pref = 'zm_cam7_ke_tune'
 #    
 
@@ -49,13 +49,15 @@ def scam_cases_grab():
 #    cases = ['FSCAM.T42_T42.XXX.cam7_zmall.001','FSCAM.T42_T42.XXX.cam6_4_032.000']
 #    cnames =  ['CAM7 (w/ KE tag)','CAM7 (w/ 032 tag)']
 
-    cases = ['f.e30.FHIST.SCAM7.XXX.zmpbl.L32.000','f.e30.FHIST.SCAM7.XXX.zmpbl.L32.000ic2']
-    cnames =  ['CAM7-L32-ic1','CAM7-L32-ic2']
+#    cases = ['f.e30.FHIST.SCAM7.XXX.zmpbl.L32.000','f.e30.FHIST.SCAM7.XXX.zmpbl.L32.000ic2']
+#    cnames =  ['CAM7-L32-ic1','CAM7-L32-ic2']
 
+#    cases = ['FSCAM.T42_T42.XXX.cam6_4_032.000.L32','FSCAM.T42_T42.XXX.cam6_4_032.000.L48','FSCAM.T42_T42.XXX.cam6_4_032.000.L58','FSCAM.T42_T42.XXX.cam6_4_032.000.L256']
+#    cnames =  ['CAM6-L32','CAM6-L48','CAM6-L58','CAM6-L256']
 
-#    cases  = ['FSCAM.T42_T42.XXX.cam7_zmall.001b','FSCAM.T42_T42.XXX.cam6_4_032.001','FSCAM.T42_T42.XXX.cam6_4_032.000','FSCAM.T42_T42.XXX.cam7_zmpbl.000','FSCAM.T42_T42.XXX.atmos_phys.000']
-#    cnames = ['CAM7-032-zmke.001b','CAM7-032-nozmpbl','CAM7-032','CAM7-zmpbl','CAM7-atmos_phys']
-
+    cases = ['FSCAM.T42_T42.XXX.cam6-phys.000.L32','FSCAM.T42_T42.XXX.cam6-phys.000.L48','FSCAM.T42_T42.XXX.cam6-phys.000.L58','FSCAM.T42_T42.XXX.cam6-phys.000.L256']
+    cnames =  ['CAM6-L32','CAM6-L48','CAM6-L58','CAM6-L256']
+    
     
 
 # ------------------------

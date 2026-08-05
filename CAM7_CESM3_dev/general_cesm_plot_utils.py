@@ -3,7 +3,7 @@
 import xarray as xr
 import matplotlib.pyplot as mp
 import matplotlib.path as mpath
-
+import inspect
 
 import numpy as np
 
@@ -57,7 +57,7 @@ def plot_lat(ax,fig,icase,var,zmp,vunits,cname,seas,mask_ocn,lanom_plot,last_plo
     
 # A bit tricky but see how many black lines there are and change the symbol if it is not the first obs. case plotted
 
-    omarker = ['8', 'v', '+', 'x']
+    omarker = ['*', 'v', 'o', 'P']
     nobs_lines = len([line for line in ax.lines if line.get_color() == 'black'])
     if nobs_lines: params_lat.update({'marker': omarker[nobs_lines]})
     
@@ -69,7 +69,7 @@ def plot_lat(ax,fig,icase,var,zmp,vunits,cname,seas,mask_ocn,lanom_plot,last_plo
        if not hasattr(ax, "_twin"):   # first time, create it
           ax._twin = ax.twinx()
           ax._twin.set_ylabel("Difference from Control")
-          ax._twin.set_ylim(-60., 20.)   # fixed constant range
+#          ax._twin.set_ylim(-60., 20.)   # fixed constant range
 
        ax._twin.plot(zmp['lat'], zmp, label=cname,
                       markersize=8, markevery=5, **params_lat)
@@ -102,13 +102,15 @@ def plot_lat(ax,fig,icase,var,zmp,vunits,cname,seas,mask_ocn,lanom_plot,last_plo
         mp.axhline(y=0, color='gray', linestyle='--', linewidth=2)
         mp.xlabel('Latitude',fontsize=fsize)
         mp.ylabel(var+' ('+vunits+')',fontsize=fsize)
+        mp.xlim([-40.,40.])
+#        mp.ylim([90.,180.])
         mp.title(f'Zonal Average of {var} - {seas} {tocean}',fontsize=fsize)
         mp.legend(fontsize=fsize)
         mp.grid(True)
         mp.tight_layout()
         
         tocean = '_ocn_' if mask_ocn else ''
-        mp.savefig(dir_fig+fig_pref+'_zonal_ave_2d_'+var+'_'+seas+tocean+'.png', dpi=120, bbox_inches='tight')
+        mp.savefig(dir_fig+fig_pref+'_zonal_ave_2d_'+var+'_'+seas+tocean+'.png', dpi=120)
         mp.show()
 
 
@@ -301,7 +303,11 @@ def plot_latlon(ax,fig,icase,var,pvar,case_stats,vunits,cname,seas,pregion, mask
 
     if last_plot:
         fig.suptitle(var + " - " + seas, fontsize=20, y=0.95)
-        fig.tight_layout(rect=[0, 0, 1, 0.97])
+        fig.tight_layout(rect=[0, 0, 1, 0.98])
+#        fig.subplots_adjust(
+#            top=0.95,     # space for title
+#            hspace=0.4    # space between rows
+#        )
  #       mp.title(var+" - "+seas,fontsize=20)
 
 
@@ -336,10 +342,12 @@ def plot_latpres(ax,fig,icase,pvar,vunits,cname,seas,lanom_plot,last_plot,params
     # Plotting
 #    pvar = pvar.sortby('lev', ascending=True)
 
+    pvar = pvar.transpose('lev', 'lat')
+
     pplot = ax.contourf(pvar.lat,pvar.lev,pvar, **params_latpres)
 
     # Add color bar before solid countours
-        
+
     if icase == 0 or (icase == 1 and lanom_plot) :
         cbar_area = [1.02, 0.05, 0.05, 0.85] ; cbar_orient = "vertical"
         cbar_area = [0.02, -0.2, 0.9, 0.05 ] ; cbar_orient = "horizontal"
@@ -348,13 +356,9 @@ def plot_latpres(ax,fig,icase,pvar,vunits,cname,seas,lanom_plot,last_plot,params
         if icase ==0 : cbar.set_label(vunits)
 
 
-    
+
     params_latpres.update({'cmap': None})
     pplot = ax.contour(pvar.lat, pvar.lev, pvar, colors='black', linewidths=0.25, **params_latpres)
-
-
-    # Mapping
-    
 
 
     
@@ -396,7 +400,7 @@ def plot_latpres(ax,fig,icase,pvar,vunits,cname,seas,lanom_plot,last_plot,params
          frmse_text = ""
 
     
-    ax.set_title(fig_let + cname + fmean_text + frmse_text, fontsize=12)
+    ax.set_title(fig_let + cname + fmean_text + frmse_text, fontsize=20)
 
 
 
@@ -464,22 +468,49 @@ def set_params_lat(icase,case,obs_set,nobs_sets):
 ''' Set Parameters For Plotting Lat-Lon'''
 
 def set_params_latpres(icase,ncases,vname,obs_set,lanom_plot):
-    
+
     plot_opts = {}
-    
+
 # Selection for each variable
 
     match (vname):
 
         case 'Q':
-            clevs = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20]
-            aclevs = [-6, -5, -4, -3, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 3, 4, 5,6]
+            clevs = np.array([1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20])
+            aclevs = np.array([-6, -5, -4, -3, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 3, 4, 5,6])*0.25
             cmap = 'terrain_r'
             acmap = 'PRGn'
 
+        case 'T':
+            clevs = np.array([180, 190, 200, 210, 220, 230, 240, 250, 260, 270, 280, 290, 300])
+            aclevs = np.array([-6, -5, -4, -3, -2, -1, -0.5, 0, 0.5, 1, 2, 3, 4, 5, 6])*0.5
+            cmap = 'RdBu_r'
+            acmap = 'RdBu_r'
+
+        case 'U':
+            clevs = [-30, -20, -15, -10, -5, 0, 5, 10, 15, 20, 30, 40, 50]
+            aclevs = [-10, -8, -6, -4, -2, -1, 0, 1, 2, 4, 6, 8, 10]
+            cmap = 'RdBu_r'
+            acmap = 'RdBu_r'
+
+        case 'OMEGA':
+            clevs = np.array([-100, -80, -60, -40, -20, -10, -5, 0, 5, 10, 20, 40, 60, 80, 100])*0.01
+            aclevs = np.array([-10, -8, -6, -4, -2, -1, 0, 1, 2, 4, 6, 8, 10])*0.01
+            cmap = 'RdBu_r'
+            acmap = 'RdBu_r'
+
+        case 'RELHUM':
+            clevs = np.array([0,10,20,30,40,50,60,70,80,90,100])
+            aclevs = np.array([-10, -8, -6, -4, -2, -1, 0, 1, 2, 4, 6, 8, 10])
+            cmap = 'RdBu_r'
+            acmap = 'RdBu_r'
+
         case _:
-            print('-Variable ',vname,' is not defined here')
-#            sys.exit(0)
+            print('-Variable ',vname,' is not defined in set_params_latpres - using generic levels')
+            clevs = np.linspace(-2, 2, 17).tolist()
+            aclevs = np.linspace(-1, 1, 17).tolist()
+            cmap = 'RdBu_r'
+            acmap = 'RdBu_r'
     
     
 # Only set to anomaly lpot if > first plot
@@ -611,7 +642,7 @@ def set_params_latlon(icase,ncases,vname,obs_set,lanom_plot):
 ### 3D VARS ###
         case 'Q':
             clevs = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20]
-            aclevs = [-8, -6, -4, -3, -2, -1, 0, 1, 2, 3, 4, 6, 8, 10]
+            aclevs = np.array([-8, -6, -4, -3, -2, -1, 0, 1, 2, 3, 4, 6, 8, 10])*0.25
             cmap = 'terrain_r'
             acmap = 'PRGn'
 
@@ -795,16 +826,23 @@ def get_pregion(pregion):
 
 ''' LOGIC FOR DERIVED VARIABLES (interpolate: lat, lon, lev,), and aonamlies'''
 
-def var_forplot(ds,var_in,var_name,var_save,icase,lanom_plot,is_obs,vproc):
+def var_forplot(ds,var_in,var_name,var_save,icase,lanom_plot,is_obs,vproc,plot_type=None):
 
-    print(var_in)
-    
-    ndims = var_in.squeeze().ndim if var_in is not None else 1 
-#    ndims = var_in.squeeze().ndim
+
+    ndims = var_in.squeeze().ndim if var_in is not None else 1
+
+    # If plot_type not passed explicitly, try to find it in the caller's notebook namespace
+    if plot_type is None:
+        _caller = inspect.currentframe().f_back
+        plot_type = (_caller.f_locals.get('plot_type') or _caller.f_globals.get('plot_type'))
+
+    # lat-pressure/height plots must keep the vertical dimension — override any vproc that would collapse it
+    if plot_type in ['latpres', 'pres', 'lathgt', 'vprf']:
+        vproc = 'plevs'
 
 # 1. Interpolate in the horizontal only if there are differences to be calculated
 
-    print(' - Processing variable ready for plotting -')
+    print(f' - Processing variable ready for plotting - vproc={vproc}, ndims={ndims}, in_dims={var_in.dims}')
 
 # If nothing to be done then var_save remains none and var_plot = var_in
     
@@ -824,38 +862,44 @@ def var_forplot(ds,var_in,var_name,var_save,icase,lanom_plot,is_obs,vproc):
     
 
  # 2. Decide if we need to interpolate/vertical average/remap in the vertical (yes regardless of lanom_plot)
-    
+
     if ndims > 2: # 3D
 
+        # Map vproc to a valid popt for to_plevs ('vint' is a synonym for 'pvint')
+        popt_use = 'pvint' if vproc in ['vint', 'pvint'] else 'plevs'
+
         # Set 3D var_save to be icase=0 var_in
-        if icase == 0 and lanom_plot: 
-                        
+        if icase == 0 and lanom_plot:
+
             if any(item in var_save_r.dims for item in ['lev','ilev']):  # 3D variable (from both obs and model).
+                var_save_r = to_plevs(ds, var_save_r, popt=popt_use)
+                var_save_r = var_save_r.load()  # compute now to break the dask graph
+                var_plot_r = var_save_r  # also apply vertical processing to the plotted field
 
-        
-                var_save_r = to_plevs(ds,var_save_r,popt=vproc)
-
-#                if vproc == 'vint':
-#                    var_save_r = to_plevs(ds,var_save_r,popt='pvint')
-                    
-                    
-                
         else:
 
             if any(item in var_in.dims for item in ['lev','ilev']):  # 3D variable (from both obs and model).
 
-                var_plot_r = to_plevs(ds,var_in,popt='plevs')
+                var_plot_r = to_plevs(ds, var_in, popt=popt_use)
+                var_plot_r = var_plot_r.load()  # compute now before interp/diff to avoid OOM
 
-                if vproc == 'vint':
-                     var_plot_r = to_plevs(ds,var_in,popt='plevs')
-    
+                # Horizontal regrid to obs grid AFTER pressure interpolation (PS lives on original model grid)
+                if lanom_plot and icase > 0 and var_save is not None:
+                    var_plot_r = var_plot_r.interp(lat=var_save.lat, lon=var_save.lon)
+
     if lanom_plot and icase > 0:
-    
+
         var_plot_r = var_plot_r - var_save # Subtracts the existing var_save for icase > 0
 
+        # Normalize dimension ordering after difference (CESM is lev,lat,lon; obs is lat,lon,lev)
+        if 'lev' in var_plot_r.dims:
+            ordered = [d for d in ['lat', 'lon', 'lev'] if d in var_plot_r.dims]
+            var_plot_r = var_plot_r.transpose(*ordered)
+
     
     
 
+    print(f' - var_forplot returning: dims={var_plot_r.dims}')
     return var_plot_r, var_save_r
 
 
@@ -884,10 +928,10 @@ def getvar_derived(ds,var_need,seas):
     if var_need in ds: # Simple variable read (actual variable on file)
         var_in = ds[var_need]
         
-    if var_need in 'PRECT' and 'PRECL' in ds and 'PRECL' in ds:
+    if var_need == 'PRECT' and 'PRECL' in ds and 'PRECC' in ds:
         var_in =  ds['PRECC']+ds['PRECL']
 
-    if var_need in 'RESTOM' and 'FLNT' in ds and 'FSNT' in ds:
+    if var_need == 'RESTOM' and 'FLNT' in ds and 'FSNT' in ds:
         var_in =  ds['FSNT']-ds['FLNT']
 
 # Just trim time if ntime=1
@@ -943,12 +987,14 @@ def to_plevs(ds,var_in,popt=None):
         P0 = ds.attrs.get("P0", 100000.0)  # reference pressure in Pa
 
         
-        PS = PS.squeeze('time', drop=True)
+        if 'time' in PS.dims:
+            PS = PS.squeeze('time', drop=True)
 
 # Add in time dimension for the routine needs
         PS = PS.expand_dims('time')
 
-        display(var_in)
+        if 'time' in var_in.dims:
+            var_in = var_in.squeeze('time', drop=True)
         var_in = var_in.expand_dims('time')    
         
 # Make sure dims are in right order.
@@ -984,7 +1030,7 @@ def to_plevs(ds,var_in,popt=None):
 
 
 
-        if popt == 'pvint':
+        if popt in ['pvint', 'vint']:
 
             print(' -Vertical integral of CAM dataset ')
         
@@ -994,14 +1040,10 @@ def to_plevs(ds,var_in,popt=None):
         
 # Interface pressures: pint(time, ilev, lat, lon)
             pint = hyai * P0 + hybi * PS
-            print(pint)
             
 # Layer thickness in pressure: dp(time, lev, lat, lon)
-            dp = pint.diff("ilev")  # matches lev
-      
-    
+            dp = pint.diff("ilev").rename({'ilev': 'lev'})  # rename so mult with var_in(lev,...) is element-wise not outer product
 
-            
 # Mass-weighted vertical integral
             var_p = (var_in * dp / grav).sum("lev", keep_attrs=True)
             
@@ -1011,14 +1053,26 @@ def to_plevs(ds,var_in,popt=None):
             
 # Get rid of the added time coordinate in either case
         var_p = var_p.squeeze('time', drop=True)
-        display(var_p)
+    
     
     else:
 
-        var_p= var_in.interp(lev=new_plevs, method='cubic')
+        # new_plevs is defined in Pa; obs lev may be in hPa or Pa — detect by magnitude
+        lev_max = float(var_in.lev.max())
+        interp_plevs = new_plevs if lev_max > 2000 else new_plevs * 0.01
+        var_p = var_in.interp(lev=interp_plevs, method='cubic')
 
-    
-    
+        # Normalise output lev to hPa to match model output from this function
+        if float(var_p.lev.max()) > 2000:
+            var_p = var_p.assign_coords(lev=0.01 * var_p.lev)
+
+        # Pressure-weighted vertical integral for obs pressure-level data
+        if popt in ['pvint', 'vint']:
+            lev_pa = var_p.lev.values * 100.  # hPa → Pa
+            dlev = np.abs(np.gradient(lev_pa))
+            dlev_da = xr.DataArray(dlev, dims='lev', coords={'lev': var_p.lev})
+            var_p = (var_p * dlev_da / grav).sum('lev', keep_attrs=True)
+
     return var_p
 
 
@@ -1101,7 +1155,8 @@ def apply_land_mask(ds,var_in):
     land_mask = (land_frac < 0.2)
     var_masked = var_in.where(land_mask)   # keeps ocean only
 
-    
+    return var_masked
+
 
     
 
@@ -1303,6 +1358,21 @@ def set_var_params (ds,var_name,case):
                          'vunits':'K',
                         }
 
+    var_info['T'] = {'vscale': 1.,
+                         'vunits':'K',
+                         'ERAI':(1.,'T'),
+                        }
+    
+    var_info['Q'] = {'vscale': 1000.,
+                         'vunits':'g/kg',
+                         'MERRA':(1.,'SHUM'),
+                         'ERAI':(1.,'SHUM'),
+                        }
+    var_info['RELHUM'] = {'vscale': 1.,
+                         'vunits':'%',
+                         'ERAI':(1.,'RELHUM'),
+                         }  
+    
     
 #### 2D AEROSOL FIELDS ####
 
@@ -1327,14 +1397,7 @@ def set_var_params (ds,var_name,case):
                         }
     
 
-### 3D VARS ###
-                        
-    var_info['Q'] = {'vscale':1000.,
-                         'vunits':'W/m2',
-                         'MERRA':(1.,'Q')
 
-                     
-                        }
     
 
     
@@ -1343,6 +1406,171 @@ def set_var_params (ds,var_name,case):
     return var_info
 
 
+
+
+#########################################################################################
+
+
+def add_region_inset(fig, ax, lat_min, lat_max, lon_min, lon_max):
+    """Add a small inset map in the upper-right corner of ax showing the averaging region."""
+    import matplotlib.patches as mpatches
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+
+    # Normalize to [-180, 180] so extents stay valid regardless of [0,360] input.
+    lon_min = ((lon_min + 180) % 360) - 180
+    lon_max = ((lon_max + 180) % 360) - 180
+    # When the domain crosses the dateline after normalization lon_min > lon_max;
+    # recenter the projection there so the map stays contiguous.
+    if lon_min > lon_max:
+        center_lon = ((lon_min + lon_max + 360) / 2 + 180) % 360 - 180
+    else:
+        center_lon = (lon_min + lon_max) / 2
+    geo = ccrs.PlateCarree()
+    proj = ccrs.PlateCarree(central_longitude=center_lon)
+
+    pad_lat = max(15.0, (lat_max - lat_min) * 0.5)
+    # Domain width accounting for possible dateline wrap
+    dom_lon_range = (lon_max - lon_min) % 360
+    pad_lon = max(15.0, dom_lon_range * 0.5)
+    ext_lon_min = lon_min - pad_lon
+    ext_lon_max = lon_max + pad_lon
+    ext = [max(-180, ext_lon_min), min(180, ext_lon_max),
+           max(-90,  lat_min - pad_lat), min(90,  lat_max + pad_lat)]
+    lon_range = max(1.0, ext[1] - ext[0])   # guard against zero/negative
+    lat_range = max(1.0, ext[3] - ext[2])
+
+    # tight_layout must have been called already so get_position() is final.
+    # Size the inset box to match the map's geographic aspect ratio so there
+    # is no whitespace / distortion inside the cartopy axes.
+    fig_w, fig_h = fig.get_size_inches()
+    pos = ax.get_position()
+    ins_w = pos.width * 0.28
+    # ins_h in figure-fraction that gives equal deg/inch in both axes
+    ins_h = ins_w * (fig_w / fig_h) * (lat_range / lon_range)
+    # cap to avoid overflowing the parent axes vertically
+    if ins_h > pos.height * 0.45:
+        ins_h = pos.height * 0.45
+        ins_w = ins_h * (fig_h / fig_w) * (lon_range / lat_range)
+    ins_x = pos.x1 - ins_w - 0.005
+    ins_y = pos.y1 - ins_h - 0.005
+
+    ax_ins = fig.add_axes([ins_x, ins_y, ins_w, ins_h], projection=proj)
+    ax_ins.patch.set_alpha(0.0)   # transparent axes background
+    ax_ins.set_extent(ext, crs=geo)
+    ax_ins.add_feature(cfeature.LAND, facecolor='lightgray', alpha=0.35, zorder=0)
+    ax_ins.add_feature(cfeature.COASTLINE, linewidth=0.5, edgecolor='dimgray', zorder=1)
+    rect = mpatches.Rectangle(
+        (lon_min, lat_min), (lon_max - lon_min) % 360, lat_max - lat_min,
+        linewidth=1.5, edgecolor='red', facecolor='red', alpha=0.35,
+        transform=geo, zorder=2
+    )
+    ax_ins.add_patch(rect)
+
+
+#########################################################################################
+
+
+'''
+    Vertical Profile Plot - domain-averaged 3D variable, all cases on one axis.
+    profile: xarray DataArray with a 'lev' coordinate (pressure in hPa after to_plevs).
+    domain_latlon: [lat_min, lat_max, lon_min, lon_max] used only for title labeling.
+'''
+
+def plot_vprf(ax, fig, icase, var, profile, vunits, cname, seas, domain_latlon, lanom_plot, last_plot, params_lat):
+
+    fsize = 15
+    lat_min, lat_max, lon_min, lon_max = domain_latlon
+
+    lev_coord = profile['lev'] if 'lev' in profile.coords else profile['plev']
+
+    omarker = ['8', 'v', '+', 'x']
+    nobs_lines = len([line for line in ax.lines if line.get_color() == 'black'])
+    if nobs_lines:
+        params_lat.update({'marker': omarker[min(nobs_lines, len(omarker)-1)]})
+
+    if icase > 0 and lanom_plot:
+        if not hasattr(ax, '_twin_vprf'):
+            ax._twin_vprf = ax.twiny()
+            ax._twin_vprf.set_xlabel('Difference from Control', fontsize=fsize-2)
+        ax._twin_vprf.plot(profile.values, lev_coord.values, label=cname,
+                           markersize=6, markevery=2, **params_lat)
+    else:
+        line, = ax.plot(profile.values, lev_coord.values, label=cname,
+                        markersize=6, markevery=2, **params_lat)
+        if lanom_plot:
+            ax.xaxis.set_tick_params(colors=line.get_color())
+
+    if last_plot:
+        ax.invert_yaxis()
+        ax.set_yscale('log')
+        plevs_ticks = [1000, 850, 700, 500, 400, 300, 200, 100, 50]
+        ax.set_yticks(plevs_ticks)
+        ax.set_yticklabels([str(p) for p in plevs_ticks])
+        ax.set_xlabel(f'{var} ({vunits})', fontsize=fsize)
+        ax.set_ylabel('Pressure (hPa)', fontsize=fsize)
+        dom_str = f'{lat_min}-{lat_max}N, {lon_min}-{lon_max}E'
+        ax.set_title(f'Vertical Profile of {var} - {seas}\n[{dom_str}]', fontsize=fsize)
+        ax.axvline(x=0, color='gray', linestyle='--', linewidth=1)
+        ax.legend(fontsize=fsize-2)
+        ax.grid(True, which='both', alpha=0.3)
+        mp.tight_layout()
+        add_region_inset(fig, ax, lat_min, lat_max, lon_min, lon_max)
+
+
+
+
+#########################################################################################
+
+
+'''
+    2D Regional Bar Chart - area-weighted regional mean for all cases, single figure.
+    means_list: list of floats (one per case, already area-weighted means).
+    names_list: list of case display names.
+    domain_latlon: [lat_min, lat_max, lon_min, lon_max].
+'''
+
+def plot_bar2d(ax, fig, means_list, names_list, vunits, var, seas, domain_latlon, lanom_plot, obs_set):
+
+    fsize = 13
+    lat_min, lat_max, lon_min, lon_max = domain_latlon
+
+    plot_cols = [
+        'red', 'royalblue', 'darkorange', 'forestgreen', 'firebrick',
+        'slateblue', 'goldenrod', 'pink', 'deepskyblue', 'crimson', 'purple', 'gray'
+    ]
+
+    x = np.arange(len(names_list))
+    bar_colors = []
+    model_idx = 0
+    for n in names_list:
+        if n in obs_set:
+            bar_colors.append('black')
+        else:
+            bar_colors.append(plot_cols[model_idx % len(plot_cols)])
+            model_idx += 1
+
+    bars = ax.bar(x, means_list, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.8)
+
+    val_range = max(means_list) - min(means_list) if len(means_list) > 1 else abs(means_list[0])
+    label_offset = val_range * 0.02
+
+    for bar, val in zip(bars, means_list):
+        ypos = bar.get_height() + label_offset if val >= 0 else bar.get_height() - label_offset
+        va = 'bottom' if val >= 0 else 'top'
+        ax.text(bar.get_x() + bar.get_width() / 2., ypos,
+                f'{val:.3g}', ha='center', va=va, fontsize=15, fontweight='bold')
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(names_list, rotation=30, ha='right', fontsize=fsize * 1.5)
+    y_label = 'Anomaly' if lanom_plot else 'Regional Mean'
+    ax.set_ylabel(f'{y_label} {var} ({vunits})', fontsize=fsize)
+    ax.axhline(y=0, color='gray', linestyle='--', linewidth=1)
+    dom_str = f'{lat_min}-{lat_max}N, {lon_min}-{lon_max}E'
+    ax.set_title(f'Regional Mean of {var} - {seas}\n[{dom_str}]', fontsize=fsize + 1)
+    ax.grid(True, axis='y', alpha=0.3)
+    mp.tight_layout()
+    add_region_inset(fig, ax, lat_min, lat_max, lon_min, lon_max)
 
 
 

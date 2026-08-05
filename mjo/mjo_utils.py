@@ -62,28 +62,143 @@ def decode_julian_day(da_time):
 # CAM / CESM data loader
 # ─────────────────────────────────────────────────────────────────────────────
 
-def load_cam_daily(data_dir, case_name,
-                   year_start=None, year_end=None,
-                   lat_s=-90., lat_n=90., lon_w=0., lon_e=360.,
-                   precip_vars=('PRECC', 'PRECL')):
+def build_cam_tseries_from_hist(hist_dir, tseries_dir, case_name, var,
+                                year_start, year_end,
+                                channel='h1a',
+                                overwrite=False,
+                                lat_s=-90., lat_n=90.,
+                                lon_w=0., lon_e=360.):
     """
-    Load CAM/CESM daily mean data for precipitation and U850.
+    Build a per-variable daily-mean timeseries file from raw CAM history files.
 
-    Expects files of the form:
-        {data_dir}/{case_name}_dmeans_ts_PRECC.nc
-        {data_dir}/{case_name}_dmeans_ts_PRECL.nc
-        {data_dir}/{case_name}_dmeans_ts_U850.nc
+    Scans hist_dir for files matching:
+        {case_name}.cam.{channel}.YYYY-*.nc
+    within [year_start, year_end], opens them with xarray, computes daily
+    means if the data is sub-daily, and writes:
+        {tseries_dir}/{case_name}_dmeans_ts_{var}.nc
 
     Parameters
     ----------
-    data_dir    : str, directory containing the _dmeans_ts_*.nc files
-    case_name   : str, CESM case name (used to build filenames)
-    year_start  : int or None, first model year to include
-    year_end    : int or None, last model year to include
-    lat_s/n     : float, latitude bounds to subset
-    lon_w/e     : float, longitude bounds to subset
-    precip_vars : tuple of str, variables to sum for total precip
-                  (default ('PRECC','PRECL'); use ('PRECT',) if available)
+    hist_dir    : str, path to <run>/atm/hist/
+    tseries_dir : str, directory where the timeseries file will be written
+    case_name   : str, CESM case name
+    var         : str, variable name (e.g. 'PRECT', 'U850')
+    year_start  : int, first year to include
+    year_end    : int, last year to include (inclusive)
+    channel     : str, history channel (e.g. 'h0a', 'h1a', 'h2a')
+    overwrite   : bool, overwrite existing timeseries file if True
+    lat_s/n     : float, latitude bounds to subset before writing (default: global)
+    lon_w/e     : float, longitude bounds to subset before writing (default: global)
+
+    Returns
+    -------
+    outpath : str, path to the written timeseries file
+    """
+    import glob
+    import os
+
+    os.makedirs(tseries_dir, exist_ok=True)
+    outpath = os.path.join(tseries_dir, f'{case_name}_dmeans_ts_{var}.nc')
+
+    if os.path.exists(outpath) and not overwrite:
+        print(f'  Tseries file already exists (skipping): {os.path.basename(outpath)}')
+        return outpath
+
+    # ── Find files ────────────────────────────────────────────────────────
+    pattern = os.path.join(hist_dir, f'{case_name}.cam.{channel}.*.nc')
+    all_files = sorted(glob.glob(pattern))
+    if not all_files:
+        raise FileNotFoundError(
+            f'No files matched pattern:\n  {pattern}')
+
+    def _year_from_fname(f):
+        # Filename: <case>.cam.<chan>.<YYYY>-<MM>-<DD>-<SSSSS>.nc
+        base = os.path.basename(f)
+        date_part = base.split(f'.cam.{channel}.')[1].replace('.nc', '')
+        return int(date_part.split('-')[0])
+
+    files = [f for f in all_files
+             if year_start <= _year_from_fname(f) <= year_end]
+    if not files:
+        raise FileNotFoundError(
+            f'No {channel} files found for years {year_start}–{year_end} in:\n  {hist_dir}')
+
+    print(f'  Found {len(files)} {channel} files  '
+          f'({os.path.basename(files[0])} … {os.path.basename(files[-1])})')
+
+    # ── Open and process ──────────────────────────────────────────────────
+    ds = xr.open_mfdataset(files, combine='by_coords',
+                           use_cftime=True,
+                           data_vars='minimal', coords='minimal',
+                           compat='override')
+
+    if var not in ds:
+        avail = list(ds.data_vars)
+        ds.close()
+        raise KeyError(
+            f"Variable '{var}' not found in {channel} files.\n"
+            f"  Available: {avail}")
+
+    da = ds[var]
+
+    # Detect sub-daily data and compute daily means if needed
+    if len(da.time) > 1:
+        try:
+            dt_s = float((da.time.values[1] - da.time.values[0]).total_seconds())
+            if dt_s < 20 * 3600:
+                print(f'  Sub-daily data (Δt≈{dt_s/3600:.1f} h): computing daily means ...')
+                da = da.resample(time='1D').mean(keep_attrs=True)
+        except (AttributeError, TypeError):
+            pass
+
+    # ── Spatial subset before writing ────────────────────────────────────
+    da = da.sel(lat=slice(lat_s, lat_n), lon=slice(lon_w, lon_e))
+
+    # ── Write timeseries file ─────────────────────────────────────────────
+    ds_out = da.to_dataset(name=var)
+    encoding = {var: {'zlib': True, 'complevel': 4}}
+    print(f'  Writing → {outpath}')
+    ds_out.to_netcdf(outpath, encoding=encoding)
+    ds.close()
+
+    return outpath
+
+
+def load_cam_daily(data_dir, case_name,
+                   year_start=None, year_end=None,
+                   lat_s=-90., lat_n=90., lon_w=0., lon_e=360.,
+                   precip_vars=('PRECC', 'PRECL'),
+                   hist_dir=None, channel='h1a',
+                   overwrite_tseries=False):
+    """
+    Load CAM/CESM daily mean data for precipitation and U850.
+
+    Two modes are supported:
+
+    **tseries mode** (hist_dir=None, default):
+        Reads pre-existing per-variable timeseries files:
+            {data_dir}/{case_name}_dmeans_ts_PRECC.nc   (or PRECT)
+            {data_dir}/{case_name}_dmeans_ts_U850.nc
+
+    **hist mode** (hist_dir supplied):
+        Scans hist_dir for raw CAM history files matching channel
+        (e.g. 'h1a'), processes years [year_start, year_end] into
+        per-variable daily-mean timeseries files saved in data_dir,
+        then loads those files.  On subsequent calls the saved files
+        are reused unless overwrite_tseries=True.
+
+    Parameters
+    ----------
+    data_dir         : str, directory for timeseries files (read and written)
+    case_name        : str, CESM case name
+    year_start       : int or None, first model year to include
+    year_end         : int or None, last model year to include
+    lat_s/n          : float, latitude bounds to subset
+    lon_w/e          : float, longitude bounds to subset
+    precip_vars      : tuple of str, variables to sum for total precip
+    hist_dir         : str or None, path to <run>/atm/hist/ for hist mode
+    channel          : str, history stream to use (e.g. 'h0a', 'h1a', 'h2a')
+    overwrite_tseries: bool, force re-creation of timeseries files
 
     Returns
     -------
@@ -95,6 +210,27 @@ def load_cam_daily(data_dir, case_name,
     """
     import os
 
+    # ── hist mode: build timeseries files first ───────────────────────────
+    if hist_dir is not None:
+        if year_start is None or year_end is None:
+            raise ValueError(
+                'year_start and year_end are required when hist_dir is provided.')
+        print(f'Building timeseries from hist ({channel}) ...')
+        for v in list(precip_vars) + ['U850']:
+            build_cam_tseries_from_hist(
+                hist_dir=hist_dir,
+                tseries_dir=data_dir,
+                case_name=case_name,
+                var=v,
+                year_start=year_start,
+                year_end=year_end,
+                channel=channel,
+                overwrite=overwrite_tseries,
+                lat_s=lat_s, lat_n=lat_n,
+                lon_w=lon_w, lon_e=lon_e,
+            )
+
+    # ── Load from timeseries files ────────────────────────────────────────
     def _open(var):
         fpath = os.path.join(data_dir, f'{case_name}_dmeans_ts_{var}.nc')
         return xr.open_dataset(fpath, use_cftime=True)

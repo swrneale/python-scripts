@@ -23,14 +23,14 @@ def get_case_all(case_group):
 #    var = 'PRECC' ; obs_cases = ['']
     #var = 'FREQZM' ; obs_cases = ['']
     #var = 'PRECL' ; obs_cases = ['']
-#    var = 'PRECT' ; obs_cases = ['TRMM'] # TRMM,GPCP
+#    var = 'PRECT' ; obs_cases = ['TRMM','GPCP'] # TRMM,GPCP
     #var = 'CLDLOW' ; obs_cases = []
-    var = 'SWCF' ; obs_cases = [''] # CERES-EBAF
+#    var = 'SWCF' ; obs_cases = ['CERES-EBAF'] # CERES-EBAF
 #    var = 'LWCF' ; obs_cases = ['CERES-EBAF']
 #    var = 'FSNT' ; obs_cases = ['CERES-EBAF']
 #    var = 'FLNT' ; obs_cases = ['CERES-EBAF']
     
-#    var = 'LHFLX' ; obs_cases = [''] # LARYEA,WHOI,ERAI
+#    var = 'LHFLX' ; obs_cases = ['LARYEA','WHOI','ERAI'] # LARYEA,WHOI,ERAI
     #var = 'SHFLX' ; obs_cases = ['LARYEA']
 #    var = 'TMQ' ; obs_cases = ['NVAP']
 #    var = 'TPERT_ZM' ; obs_cases = ['']
@@ -41,8 +41,16 @@ def get_case_all(case_group):
     #var = 'TAUY' ; obs_cases = ['MERRA']
     # 3D variables
     
-    #var = 'Q' ; obs_cases = ['MERRA']
+#    var = 'Q' ; obs_cases = ['ERAI']
 #    var = 'TS' ; obs_cases = ['HadISST_PI']
+
+#    var = 'T' ; obs_cases = ['MERRA'] # LARYEA,WHOI,ERAI
+#    var = 'Q' ; obs_cases = ['MERRA'] # LARYEA,WHOI,ERAI
+    var = 'RELHUM' ; obs_cases = ['ERAI'] # LARYEA,WHOI,ERAI
+    
+    
+    
+    
     
     
     
@@ -280,6 +288,25 @@ def get_case_all(case_group):
     
 
 
+    if case_group == 5:  # FOR ZMPBL PAPER
+    
+            fig_pref = 'zmpbl_paper_numcin'
+        
+            nrow_scale = 2
+            ncol_scale = 2
+            
+            dcases = { 'CAM7'        : 'f.e30.FLTHIST.CAM7.L58.000a',
+#                       'CAM7-nozmpbl'        : 'f.e30.FLTHIST.CAM7.L58.001a',
+#                       'CAM7-L32'    : 'f.e30.FLTHIST.CAM7.L32.000a',                                             
+#                       'CAM7-nozmpbl-L48'    : 'f.e30.FLTHIST.CAM7.L48.001a',
+#                       'CAM7-nozmpbl-L32'    : 'f.e30.FLTHIST.CAM7.L32.001a',
+#                       'CAM7-CAM6-phys'   : 'f.e30.FHIST.CAM6-phys.L32.000a',
+                       'CAM6'        : 'f.e22.FHIST.f09_f09.CAM6.L32.000',
+                       'WACCM7-numcin1'        : 'f.e30.FHISTC_WAt1ma.ne30pg3_mg17_L135_cam6_4_173_beres0.15_num_cin1',
+                       'WACCM7-numcin3'        : 'f.e30.FHISTC_WAt1ma.ne30pg3_mg17_L135_cam6_4_173_beres0.15_num_cin3',
+                       
+                     } 
+    
 
 
 

@@ -411,7 +411,7 @@ def _ensure_s2n(da, lat_name='lat'):
     for cname in [lat_name, 'latitude']:
         if cname in da.dims:
             if da[cname].values[0] > da[cname].values[-1]:
-                da = da.isel({cname: slice(None, None, -1)})
+                da = da.sortby(cname)
             return da
     return da
 
@@ -544,19 +544,70 @@ def load_trmm_gpcp_data(source, var='PRECT', yr0=None, yr1=None, lat_bound=15,
     return x_np, lat, lon
 
 
+_RNEALE_ARCHIVE = '/glade/derecho/scratch/rneale/archive'
+_HANNAY_ARCHIVE = '/glade/derecho/scratch/hannay/archive'
+
+
+def _make_dmeans_from_h2a(case, var, out_dir):
+    """Build a dmeans tseries file from h2a history files in hannay's archive.
+
+    h2a files already contain daily means (cell_methods='time: mean').
+    Concatenates all h2a files, extracts *var*, and writes to *out_dir*.
+
+    Returns
+    -------
+    Path to the newly written file.
+    """
+    hist_dir = Path(_HANNAY_ARCHIVE) / case / 'atm' / 'hist'
+    files = sorted(hist_dir.glob(f'{case}.cam.h2a.*.nc'))
+    if not files:
+        raise FileNotFoundError(
+            f"No h2a files for case={case} in {hist_dir}"
+        )
+
+    print(f"  Building dmeans tseries from {len(files)} h2a files in hannay archive...")
+    ds = xr.open_mfdataset(
+        files,
+        combine='by_coords',
+        data_vars='minimal',
+        coords='minimal',
+        compat='override',
+    )
+    if var not in ds:
+        raise KeyError(
+            f"Variable '{var}' not found in h2a files. "
+            f"Available: {list(ds.data_vars)}"
+        )
+
+    da = ds[[var]]   # keep as Dataset so to_netcdf preserves coords cleanly
+
+    out_path = Path(out_dir) / f'{case}_dmeans_ts_{var}.nc'
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"  Writing {out_path} ...")
+    da.to_netcdf(out_path)
+    ds.close()
+    print(f"  Done.")
+    return out_path
+
+
 def load_model_data(case, var='PRECT', yr0=None, yr1=None, lat_bound=15,
                     vscale=86400. * 1000.,
-                    data_dir='/glade/derecho/scratch/rneale/archive'):
+                    data_dir=_RNEALE_ARCHIVE):
     """Load CESM/CAM daily time-series data.
 
-    Expects: {data_dir}/{case}/tseries/{case}_dmeans_ts_{var}.nc
+    Looks first in {data_dir}/{case}/tseries/ for pre-built dmeans files.
+    If none are found, builds one from h2a files in hannay's archive and
+    saves it to data_dir for future use.
+
     vscale: unit conversion (default: m/s → mm/day for PRECT).
     """
     fdir = Path(data_dir) / case / 'tseries'
-    # Support single file or multi-file glob
     candidates = sorted(fdir.glob(f'{case}_dmeans_ts_{var}*.nc'))
+
     if not candidates:
-        raise FileNotFoundError(f"No model files for case={case} var={var} in {fdir}")
+        # Fall back: build from h2a files in hannay's archive
+        out_file = _make_dmeans_from_h2a(case, var, fdir)
+        candidates = [out_file]
 
     ds = xr.open_mfdataset(candidates, combine='by_coords')
     da = ds[var]

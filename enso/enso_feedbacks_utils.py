@@ -53,9 +53,9 @@ def nino_region(nino_name):
 
 ''' Read in Different Datasets For each Axis '''
 
+dd
 
-
-def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file ,lread_ts_file):
+def get_dataset(case,case_type,var_axis,yr0,yr1,lread_in_all_hist,lwrite_ts_file=False ,lread_ts_file=False):
 
 
     cvars = ['TS','TAUX','PRECT','OMEGA500','DTCOND300','DTCOND500','DTCOND700'] 

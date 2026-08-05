@@ -38,11 +38,14 @@ phase_utc_to_lst    = dcutils.phase_utc_to_lst
 SEASON_MONTHS       = dcutils.SEASON_MONTHS
 _LEAP_YEARS         = dcutils._LEAP_YEARS
 
-# Default data directory
-DATA_DIR = '/glade/campaign/cesm/development/cross-wg/S2S/CESM2/S2SHINDCASTS/6hourly'
+# Default data directories
+DATA_DIR      = '/glade/campaign/cesm/development/cross-wg/S2S/CESM2/S2SHINDCASTS/6hourly'
+DATA_DIR_ERA5 = '/lustre/desc1/espat/s2s/cesm/cesm2_era5/cesm2_era5/3hourly'
+IMERG_DIR     = '/glade/derecho/scratch/rneale/IMERG/3hrly/1deg'
 
-# Unit conversion: m/s → mm/day
-_MS_TO_MMDAY = 1000.0 * 86400.0
+# Unit conversions
+_MS_TO_MMDAY   = 1000.0 * 86400.0   # m/s  → mm/day
+_MMHR_TO_MMDAY = 24.0                # mm/hr → mm/day
 
 # ── Per-variable settings ─────────────────────────────────────────────────────
 # Each entry: scale    — multiply raw CAM value to reach 'units'
@@ -84,6 +87,30 @@ VAR_SETTINGS = {
         'levels':    None,
         'cmap':      'RdBu_r',
     },
+    'TS': {
+        'long_name': 'Surface Temperature',
+        'units':     'K',
+        'scale':     1.0,
+        'min_amp':   0.5,   'max_amp': 5.0,
+        'levels':    None,
+        'cmap':      'RdBu_r',
+    },
+    'UBOT': {
+        'long_name': 'Lowest Model Level Zonal Wind',
+        'units':     'm/s',
+        'scale':     1.0,
+        'min_amp':   0.1,   'max_amp': 2.0,
+        'levels':    None,
+        'cmap':      'YlOrRd',
+    },
+    'QBOT': {
+        'long_name': 'Lowest Model Level Water Vapour',
+        'units':     'g/kg',
+        'scale':     1000.0,        # kg/kg → g/kg
+        'min_amp':   0.05,  'max_amp': 0.5,
+        'levels':    None,
+        'cmap':      'Blues',
+    },
 }
 
 
@@ -110,6 +137,42 @@ def get_start_dates(data_dir=DATA_DIR, season=None, year_start=None, year_end=No
     # Use ensemble member 00 as the reference file to find available dates
     files = glob.glob(os.path.join(data_dir, 'cesm2cam6v2.????-??-??.00.cam.h3.*.nc'))
     dates = sorted({os.path.basename(f).split('.')[1] for f in files})
+
+    if year_start is not None:
+        dates = [d for d in dates if int(d[:4]) >= year_start]
+    if year_end is not None:
+        dates = [d for d in dates if int(d[:4]) <= year_end]
+    if season is not None:
+        months, _ = get_season_months(season)
+        dates = [d for d in dates if int(d[5:7]) in months]
+
+    return dates
+
+
+def get_start_dates_cesm2era5(data_dir=DATA_DIR_ERA5, season=None,
+                               year_start=None, year_end=None):
+    """
+    Return sorted list of start date strings 'YYYY-MM-DD' available in the
+    cesm2_era5 3-hourly dataset (member 00 used as reference).
+
+    Parameters
+    ----------
+    data_dir   : str   path to the 3-hourly ERA5-init directory
+    season     : str   e.g. 'JJA', 'DJF', 'ANN'
+    year_start : int   inclusive lower year bound
+    year_end   : int   inclusive upper year bound
+
+    Returns
+    -------
+    dates : list of str 'YYYY-MM-DD'
+    """
+    files = glob.glob(os.path.join(
+        data_dir, 'cesm2_era5_????-??-??.00.cam.h4.*.nc'))
+    # basename: 'cesm2_era5_YYYY-MM-DD.00.cam.h4.YYYY-MM-DD-00000.nc'
+    dates = sorted({
+        os.path.basename(f).split('.')[0].split('_era5_')[1]
+        for f in files
+    })
 
     if year_start is not None:
         dates = [d for d in dates if int(d[:4]) >= year_start]
@@ -417,6 +480,468 @@ def load_forecast_diurnal_var(data_dir=DATA_DIR, start_dates=None, ens_members=N
                'var_name':  var_name,
                'dt_hours':  dt_hours},
     )
+
+
+def load_cesm2era5_diurnal(data_dir=DATA_DIR_ERA5, start_dates=None,
+                       ens_members=None, nlead_days=10, dt_hours=3,
+                       precip_vars=('PRECT',), scale_mmday=True):
+    """
+    Load CESM2/ERA5-init 3-hourly hindcast files and compute a lead-day
+    diurnal cycle composite.
+
+    File naming convention::
+
+        cesm2_era5_YYYY-MM-DD.NN.cam.h4.YYYY-MM-DD-00000.nc
+
+    Each 45-day forecast has 361 time steps at 3-hourly resolution
+    (n_tod = 8 per calendar day).  Ensemble indices run 00–10 (11 members).
+
+    Parameters
+    ----------
+    data_dir     : str   directory containing the 3-hourly ERA5-init files
+    start_dates  : list of str 'YYYY-MM-DD'; if None uses all available dates
+    ens_members  : list of int ensemble indices (0–10); if None uses [0..10]
+    nlead_days   : int   number of lead days to composite (max 45)
+    dt_hours     : float data time step in hours (default 3)
+    precip_vars  : tuple of str variable name(s) to sum; only PRECT is in
+                   these files so ('PRECT',) is the correct choice
+    scale_mmday  : bool  if True convert m/s → mm/day
+
+    Returns
+    -------
+    dc_leads : xr.DataArray (lead_day, time_of_day, lat, lon)
+               Composite diurnal cycle [mm/day or m/s].
+               Longitude is rolled to -180–180.
+    """
+    if start_dates is None:
+        start_dates = get_start_dates_cesm2era5(data_dir)
+    if ens_members is None:
+        ens_members = list(range(11))
+
+    n_tod      = int(24 // dt_hours)
+    scale      = _MS_TO_MMDAY if scale_mmday else 1.0
+    nlead_days = min(nlead_days, 45)
+
+    dc_sum  = None
+    cnt_sum = None
+    lat = lon = None
+
+    n_total   = len(start_dates) * len(ens_members)
+    n_done    = 0
+    n_skipped = 0
+    n_no_var  = 0
+
+    for start_date in start_dates:
+        for ens in ens_members:
+            fname = (f'cesm2_era5_{start_date}.{ens:02d}.cam.h4.'
+                     f'{start_date}-00000.nc')
+            fpath = os.path.join(data_dir, fname)
+            if not os.path.isfile(fpath):
+                n_skipped += 1
+                n_done    += 1
+                continue
+
+            ds = xr.open_dataset(fpath, decode_times=False)
+
+            pr = None
+            for v in precip_vars:
+                if v in ds:
+                    arr = ds[v].values.astype(np.float32)
+                    pr  = arr if pr is None else pr + arr
+            if pr is None:
+                n_no_var += 1
+                ds.close()
+                n_done   += 1
+                continue
+            pr[pr < 0] = np.nan
+            pr *= scale
+
+            if lat is None:
+                lat = ds['lat'].values.copy()
+                lon = ds['lon'].values.copy()
+                nlat, nlon = lat.size, lon.size
+                dc_sum  = np.zeros((nlead_days, n_tod, nlat, nlon), np.float64)
+                cnt_sum = np.zeros((nlead_days, n_tod, nlat, nlon), np.int32)
+            ds.close()
+
+            for d in range(nlead_days):
+                i0 = d * n_tod
+                i1 = i0 + n_tod
+                if i1 > pr.shape[0]:
+                    break
+                chunk = pr[i0:i1]
+                valid = np.isfinite(chunk)
+                dc_sum[d]  += np.where(valid, chunk, 0.0)
+                cnt_sum[d] += valid.astype(np.int32)
+
+            n_done += 1
+            if n_done % 100 == 0:
+                n_loaded = n_done - n_skipped - n_no_var
+                print(f'  {n_done}/{n_total}  loaded={n_loaded}  '
+                      f'missing={n_skipped}  no_precip={n_no_var}')
+
+    n_loaded = n_done - n_skipped - n_no_var
+    print(f'  Done: {n_loaded}/{n_total} files loaded  '
+          f'({n_skipped} missing, {n_no_var} no precip variable)')
+
+    if dc_sum is None:
+        raise RuntimeError(
+            'No CESM2-ERA5init forecast files found for the requested dates/members.')
+
+    with np.errstate(invalid='ignore', divide='ignore'):
+        dc = np.where(cnt_sum > 0,
+                      dc_sum / cnt_sum,
+                      np.nan).astype(np.float32)
+
+    dc, lon   = _roll_lon(dc, lon)
+    tod       = np.arange(n_tod, dtype=float) * dt_hours
+    lead_days = np.arange(1, nlead_days + 1)
+
+    return xr.DataArray(
+        dc,
+        dims=['lead_day', 'time_of_day', 'lat', 'lon'],
+        coords={'lead_day':    lead_days,
+                'time_of_day': tod,
+                'lat':         lat,
+                'lon':         lon},
+        attrs={'units':     'mm/day' if scale_mmday else 'm/s',
+               'long_name': 'ERA5-init composite diurnal cycle',
+               'dt_hours':  dt_hours,
+               'source':    'cesm2_era5 3-hourly hindcasts'},
+    )
+
+
+def load_cesm2era5_diurnal_var(data_dir=DATA_DIR_ERA5, start_dates=None,
+                           ens_members=None, nlead_days=10, dt_hours=3,
+                           var_name='TMQ', scale=None):
+    """
+    Load any CAM variable from the CESM2/ERA5-init 3-hourly files and compute
+    a lead-day diurnal cycle composite.
+
+    Available variables in these files: PRECT, PS, PSL, QBOT, TMQ, TS,
+    UBOT, VBOT.  Unit scaling is taken from VAR_SETTINGS when not supplied.
+
+    Parameters
+    ----------
+    data_dir    : str   path to the 3-hourly ERA5-init directory
+    start_dates : list of str 'YYYY-MM-DD'
+    ens_members : list of int ensemble indices (0–10)
+    nlead_days  : int   number of lead days (max 45)
+    dt_hours    : float data time step in hours (default 3)
+    var_name    : str   CAM variable name
+    scale       : float unit conversion; if None uses VAR_SETTINGS
+
+    Returns
+    -------
+    dc_leads : xr.DataArray (lead_day, time_of_day, lat, lon)
+    """
+    if start_dates is None:
+        start_dates = get_start_dates_cesm2era5(data_dir)
+    if ens_members is None:
+        ens_members = list(range(11))
+
+    vset  = VAR_SETTINGS.get(var_name, {})
+    if scale is None:
+        scale = vset.get('scale', 1.0)
+
+    n_tod      = int(24 // dt_hours)
+    nlead_days = min(nlead_days, 45)
+    is_prect   = (var_name == 'PRECT')
+
+    dc_sum  = None
+    cnt_sum = None
+    lat = lon = None
+
+    n_total   = len(start_dates) * len(ens_members)
+    n_done    = 0
+    n_skipped = 0
+    n_no_var  = 0
+
+    for start_date in start_dates:
+        for ens in ens_members:
+            fname = (f'cesm2_era5_{start_date}.{ens:02d}.cam.h4.'
+                     f'{start_date}-00000.nc')
+            fpath = os.path.join(data_dir, fname)
+            if not os.path.isfile(fpath):
+                n_skipped += 1
+                n_done    += 1
+                continue
+
+            ds = xr.open_dataset(fpath, decode_times=False)
+
+            if is_prect:
+                if 'PRECT' in ds:
+                    raw = ds['PRECT'].values.astype(np.float32)
+                else:
+                    n_no_var += 1
+                    ds.close()
+                    n_done   += 1
+                    continue
+            else:
+                if var_name not in ds:
+                    n_no_var += 1
+                    ds.close()
+                    n_done   += 1
+                    continue
+                raw = ds[var_name].values.astype(np.float32)
+
+            data = raw * scale
+
+            if lat is None:
+                lat  = ds['lat'].values.copy()
+                lon  = ds['lon'].values.copy()
+                nlat, nlon = lat.size, lon.size
+                dc_sum  = np.zeros((nlead_days, n_tod, nlat, nlon), np.float64)
+                cnt_sum = np.zeros((nlead_days, n_tod, nlat, nlon), np.int32)
+            ds.close()
+
+            for d in range(nlead_days):
+                i0 = d * n_tod
+                i1 = i0 + n_tod
+                if i1 > data.shape[0]:
+                    break
+                chunk = data[i0:i1]
+                valid = np.isfinite(chunk)
+                dc_sum[d]  += np.where(valid, chunk, 0.0)
+                cnt_sum[d] += valid.astype(np.int32)
+
+            n_done += 1
+            if n_done % 100 == 0:
+                n_loaded = n_done - n_skipped - n_no_var
+                print(f'  {n_done}/{n_total}  loaded={n_loaded}  '
+                      f'missing={n_skipped}  no_var={n_no_var}')
+
+    n_loaded = n_done - n_skipped - n_no_var
+    print(f'  Done: {n_loaded}/{n_total} files loaded  '
+          f'({n_skipped} missing, {n_no_var} without {var_name!r})')
+
+    if dc_sum is None:
+        raise RuntimeError(
+            f'No ERA5-init forecast files found for variable {var_name!r}.')
+
+    with np.errstate(invalid='ignore', divide='ignore'):
+        dc = np.where(cnt_sum > 0,
+                      dc_sum / cnt_sum,
+                      np.nan).astype(np.float32)
+
+    dc, lon   = _roll_lon(dc, lon)
+    tod       = np.arange(n_tod, dtype=float) * dt_hours
+    lead_days = np.arange(1, nlead_days + 1)
+
+    return xr.DataArray(
+        dc,
+        dims=['lead_day', 'time_of_day', 'lat', 'lon'],
+        coords={'lead_day':    lead_days,
+                'time_of_day': tod,
+                'lat':         lat,
+                'lon':         lon},
+        attrs={'units':     vset.get('units', ''),
+               'long_name': vset.get('long_name', var_name),
+               'var_name':  var_name,
+               'dt_hours':  dt_hours,
+               'source':    'cesm2_era5 3-hourly hindcasts'},
+    )
+
+
+def load_imerg_diurnal(imerg_dir=IMERG_DIR, season=None,
+                       year_start=None, year_end=None):
+    """
+    Load GPM IMERG 3-hourly 1-degree monthly files and compute the mean
+    diurnal cycle for the requested season and year range.
+
+    Files must be named  IMERG_3hr.YYYYMM.1deg.nc  with a 'precip' variable
+    in mm/hr.  Year filtering matches the same convention used for the
+    forecast start-dates: a file's month must be in the season AND its year
+    must be in [year_start, year_end].
+
+    Parameters
+    ----------
+    imerg_dir  : str  directory containing the monthly IMERG files
+    season     : str  season code recognised by get_season_months
+                 (e.g. 'DJF', 'JJA', 'ANN'); None = all months
+    year_start : int  first year inclusive; None = no lower bound
+    year_end   : int  last year inclusive;  None = no upper bound
+
+    Returns
+    -------
+    dc_imerg : xr.DataArray (time_of_day, lat, lon)
+               Mean precipitation at each UTC time-of-day [mm/day].
+               Attributes: units, dt_hours=3, source.
+    """
+    # Build month whitelist
+    months_ok = None
+    if season is not None:
+        months_ok, _ = get_season_months(season)
+
+    # Collect matching files
+    all_files = sorted(
+        glob.glob(os.path.join(imerg_dir, 'IMERG_3hr.??????.1deg.nc')))
+    files = []
+    for f in all_files:
+        ym = os.path.basename(f).split('.')[1]   # 'YYYYMM'
+        yr, mo = int(ym[:4]), int(ym[4:])
+        if year_start is not None and yr < year_start:
+            continue
+        if year_end   is not None and yr > year_end:
+            continue
+        if months_ok  is not None and mo not in months_ok:
+            continue
+        files.append(f)
+
+    if not files:
+        raise RuntimeError(
+            f'No IMERG files found for season={season} '
+            f'{year_start}–{year_end} in {imerg_dir}')
+
+    print(f'  IMERG: loading {len(files)} monthly files '
+          f'({season} {year_start}–{year_end}) ...')
+
+    # 3-hourly time-of-day bins: 0, 3, 6, ..., 21
+    dt_imerg  = 3.0
+    n_tod     = int(24 // dt_imerg)
+    tod_hours = np.arange(n_tod) * dt_imerg   # [0, 3, 6, ..., 21]
+
+    dc_sum = None
+    dc_cnt = None
+    lat = lon = None
+
+    for f in files:
+        # drop 'datesec' — it has non-standard units ("seconds since start of day")
+        # that xarray cannot decode; we derive the hour from 'yyyymmddhh' instead.
+        ds  = xr.open_dataset(f, decode_times=False,
+                              drop_variables=['datesec'])
+        pr  = ds['precip'].values.astype(np.float32)  # (ntime, nlat, nlon)
+        pr[pr < 0] = np.nan
+        hour = ds['yyyymmddhh'].values % 100           # (ntime,) — last 2 digits = UTC hour
+
+        if lat is None:
+            lat = ds['lat'].values.copy()
+            lon = ds['lon'].values.copy()
+            dc_sum = np.zeros((n_tod, len(lat), len(lon)), np.float64)
+            dc_cnt = np.zeros((n_tod, len(lat), len(lon)), np.int32)
+        ds.close()
+
+        for it, h in enumerate(tod_hours.astype(int)):
+            idx = hour == h
+            if not idx.any():
+                continue
+            chunk = pr[idx]                        # (n_at_h, nlat, nlon)
+            valid = np.isfinite(chunk)
+            dc_sum[it] += np.where(valid, chunk, 0.0).sum(axis=0)
+            dc_cnt[it] += valid.astype(np.int32).sum(axis=0)
+
+    print(f'  IMERG: done.')
+
+    with np.errstate(invalid='ignore', divide='ignore'):
+        dc = np.where(dc_cnt > 0,
+                      dc_sum / dc_cnt,
+                      np.nan).astype(np.float32)
+    dc *= _MMHR_TO_MMDAY   # mm/hr → mm/day
+
+    return xr.DataArray(
+        dc,
+        dims=['time_of_day', 'lat', 'lon'],
+        coords={'time_of_day': tod_hours,
+                'lat':         lat,
+                'lon':         lon},
+        attrs={'units':     'mm/day',
+               'long_name': 'IMERG mean diurnal cycle',
+               'dt_hours':  dt_imerg,
+               'source':    'GPM IMERG V07B 3-hourly 1-degree'},
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Experiment registry and unified loader
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Maps experiment name → configuration used by load_experiment / get_start_dates_for.
+# 'n_ens'  : total ensemble members available (use None to override via ens_members arg)
+# 'label'  : human-readable description for plot titles
+EXPERIMENTS = {
+    'CESM2-CAM6v2': {
+        'label':    'CESM2 CAM6v2 S2S hindcasts (6-hourly)',
+        'data_dir': DATA_DIR,
+        'dt_hours': 6,
+        'n_ens':    21,
+    },
+    'CESM2-ERA5init': {
+        'label':    'CESM2 ERA5-initialized hindcasts (3-hourly)',
+        'data_dir': DATA_DIR_ERA5,
+        'dt_hours': 3,
+        'n_ens':    11,
+    },
+}
+
+
+def get_start_dates_for(experiment, data_dir=None, season=None,
+                         year_start=None, year_end=None):
+    """
+    Return available start dates for the given experiment name.
+
+    Dispatches to the correct underlying get_start_dates function.
+    experiment : str  key in EXPERIMENTS ('CESM2-CAM6v2' or 'CESM2-ERA5init')
+    """
+    if experiment not in EXPERIMENTS:
+        raise ValueError(f"Unknown experiment {experiment!r}. "
+                         f"Choose: {list(EXPERIMENTS)}")
+    cfg = EXPERIMENTS[experiment]
+    if data_dir is None:
+        data_dir = cfg['data_dir']
+    if experiment == 'CESM2-CAM6v2':
+        return get_start_dates(data_dir, season=season,
+                               year_start=year_start, year_end=year_end)
+    else:  # CESM2-ERA5init
+        return get_start_dates_cesm2era5(data_dir, season=season,
+                                          year_start=year_start, year_end=year_end)
+
+
+def load_experiment(experiment, var_name='PRECT', data_dir=None,
+                    start_dates=None, ens_members=None,
+                    nlead_days=10, dt_hours=None, scale=None):
+    """
+    Load a diurnal cycle composite for the given experiment and variable.
+
+    Dispatches to the correct underlying loader based on experiment name.
+    All downstream analysis functions (compute_lead_harmonics, plotting)
+    accept the returned DataArray without modification.
+
+    Parameters
+    ----------
+    experiment  : str   key in EXPERIMENTS
+    var_name    : str   CAM variable (e.g. 'PRECT', 'TMQ', 'PSL', 'TS', 'UBOT')
+    data_dir    : str   override default data directory
+    start_dates : list of str 'YYYY-MM-DD'; None = all available
+    ens_members : list of int; None = all available for this experiment
+    nlead_days  : int
+    dt_hours    : float; None = use experiment default
+    scale       : float; None = use VAR_SETTINGS default
+
+    Returns
+    -------
+    dc_leads : xr.DataArray (lead_day, time_of_day, lat, lon)
+    """
+    if experiment not in EXPERIMENTS:
+        raise ValueError(f"Unknown experiment {experiment!r}. "
+                         f"Choose: {list(EXPERIMENTS)}")
+    cfg = EXPERIMENTS[experiment]
+    if data_dir is None:
+        data_dir = cfg['data_dir']
+    if dt_hours is None:
+        dt_hours = cfg['dt_hours']
+    if ens_members is None:
+        ens_members = list(range(cfg['n_ens']))
+
+    if experiment == 'CESM2-CAM6v2':
+        return load_forecast_diurnal_var(
+            data_dir=data_dir, start_dates=start_dates,
+            ens_members=ens_members, nlead_days=nlead_days,
+            dt_hours=dt_hours, var_name=var_name, scale=scale)
+    else:  # CESM2-ERA5init
+        return load_cesm2era5_diurnal_var(
+            data_dir=data_dir, start_dates=start_dates,
+            ens_members=ens_members, nlead_days=nlead_days,
+            dt_hours=dt_hours, var_name=var_name, scale=scale)
 
 
 def auto_plot_ranges(dc_leads, n_levels=12):

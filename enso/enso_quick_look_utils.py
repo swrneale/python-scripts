@@ -228,7 +228,7 @@ def get_dataset(case,case_type,case_owner,var_axis,yr0,yr1,lread_in_all_hist,lwr
     
                 # Trim down range of files to read in requested years, otherwise read in all.
     
-                
+                print(lread_in_all_hist)
                 if not lread_in_all_hist:
                     print('  - Using a subset of the available data')
                     files_hist = []
@@ -236,16 +236,17 @@ def get_dataset(case,case_type,case_owner,var_axis,yr0,yr1,lread_in_all_hist,lwr
     #                yr_arr_string = "[" + ",".join(f"{n:04d}" for n in yrange) + "]"
                     yr_arr_strings = [f"{num:04d}" for num in yrange]
     
-    #                print(y_arr_strings)
                     for yr_str in yr_arr_strings:
                         file_ls = dir_c3+case+'/atm/hist/'+case+'.cam.h0a.'+yr_str+'*.nc'
+                        print(file_ls)
                         files_hist.extend(glob.glob(file_ls)) 
     
                     files_hist.sort()
-
+        
                 
                 else:
                     print('  - Using all of the available data')
+                    print(case)
                     files_ls = dir_c3+case+'/atm/hist/'+case+'.cam.h0a.*.nc'
                     files_hist = glob.glob(files_ls)
                     

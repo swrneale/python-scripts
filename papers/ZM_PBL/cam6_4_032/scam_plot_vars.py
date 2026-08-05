@@ -98,11 +98,11 @@ def scam_vars_grab():
     #vname1d = 'U10' ; vscale1d = 1. ;  units1d='m/s' ; pmin = 0. ; pmax= 10.
     #vname1d = 'TAUX' ; vscale1d = 1. ;  units1d='kg/m^2/s' ; pmin = -0.2 ; pmax= 0.0
     #vname1d = 'ZBOT' ; vscale1d = 1. ;  units1d='m' ; pmin = 0. ; pmax= 150.
-#    vname1d = 'PRECT' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0.01 ; pmax= 60. ; ovar1d = 'Prec' ; ovscale1d = 86400. 
+    vname1d = 'PRECT' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0.01 ; pmax= 60. ; ovar1d = 'Prec' ; ovscale1d = 86400. 
 
 
 #    vname1d = 'PRECZ' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
-    vname1d = 'PRECC' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
+#    vname1d = 'PRECC' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
 #    vname1d = 'PRECL' ; vscale1d = 86400.*1000. ;  units1d='mm/day' ; pmin = 0. ; pmax= 45.
 #    vname1d = 'PRECT' ; vscale1d = 1. ;  units1d='J/kg' ; pmin = 0. ; pmax= 1000.
 #    vname1d = 'CAPE' ; vscale1d = 1. ;  units1d='J/kg' ; pmin = 0. ; pmax= 1000.    

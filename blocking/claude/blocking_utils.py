@@ -113,7 +113,7 @@ def find_ens_info(ens_names, mem_num, ystart, yend):
                     for r in run_names
                 ]
                 # Shorten display name
-                ens_name = 'CESM3-271' if '271' in ens_name else 'CESM3-276'
+#                ens_name = 'CESM3-271' if '271' in ens_name else 'CESM3-276'
 
             case ens_name if ens_name in OBS_SOURCES:
                 ens_type = 'obs'
@@ -167,7 +167,7 @@ def dataset_get(block_meta, var_name, season):
 
         ds_members = []
         for run_file in run_files:
-
+            print(run_file)
             if ens_name == 'CESM2':
                 run_file = run_file.replace('DATE_RANGE', '*')
                 ds = xr.open_mfdataset(run_file, parallel=True, chunks=chunks)
@@ -228,20 +228,29 @@ _DELTAS = [-3.75, 0.0, 3.75]
 
 def block_z500_freq(block_meta, ens_ds, bseason, block_diag=None, file_opts='x'):
     """
-    Compute seasonal blocking frequency (Davini et al. 2012).
+    Compute seasonal blocking diagnostic (Davini et al. 2012).
 
     Parameters
     ----------
     block_meta : pd.DataFrame  from find_ens_info / ens_setup
     ens_ds     : dict           from dataset_get
     bseason    : str            season label (for file naming)
-    block_diag : '1D' or '2D'
+    block_diag : '1D'   – 1D blocking frequency [0–1]
+                 '2D'   – 2D blocking frequency [0–1]
+                 'GHGS' – mean south gradient strength (m / degree-lat)
+                 'GHGN' – mean north gradient strength (m / degree-lat)
     file_opts  : 'x' skip I/O | 'w' write | 'r' read from disk
 
     Returns
     -------
-    dict  {ens_name: xr.DataArray}  blocking frequency [0–1]
+    dict  {ens_name: xr.DataArray}
+        frequency [0–1] for '1D'/'2D'; gradient (m/deg) for 'GHGS'/'GHGN'
     """
+    _VALID_DIAGS = ('1D', '2D', 'GHGS', 'GHGN')
+    if block_diag not in _VALID_DIAGS:
+        print(f'  Unknown block_diag "{block_diag}" — use one of {_VALID_DIAGS}')
+        sys.exit(1)
+
     ens_names = list(block_meta.index)
     block_freq_ens = {}
 
@@ -255,27 +264,32 @@ def block_z500_freq(block_meta, ens_ds, bseason, block_diag=None, file_opts='x')
 
             z500 = ens_ds[ens_name]['Z500'].sel(lat=slice(_LAT_S, _LAT_N))
 
-            print(f'  block_z500_freq: {block_diag} blocking for {ens_name}')
+            print(f'  block_z500_freq: {block_diag} for {ens_name}')
 
             if block_diag == '1D':
                 is_blocked = _blocking_1d(z500)
+                block_freq = is_blocked.sum('time') / is_blocked.sizes['time']
 
             elif block_diag == '2D':
                 is_blocked = _blocking_2d(z500)
+                block_freq = is_blocked.sum('time') / is_blocked.sizes['time']
 
-            else:
-                print(f'  Unknown block_diag "{block_diag}" — use "1D" or "2D"')
-                sys.exit(1)
+            elif block_diag == 'GHGS':
+                block_freq = _ghgs_1d(z500).mean('time')
 
-            block_freq = is_blocked.sum('time') / is_blocked.sizes['time']
+            else:  # GHGN
+                block_freq = _ghgn_1d(z500).mean('time')
 
         block_freq = block_file_read_write(
             ens_name, n_mem, y0, y1, bseason, block_freq, block_diag, file_opts
         )
 
-        pct = 100. * block_freq
-        print(f'    {ens_name}: blocking {pct.min().values:.2f}–{pct.max().values:.2f}%'
-              f'  ({time.time()-t0:.1f}s)')
+        if block_diag in ('1D', '2D'):
+            pct = 100. * block_freq
+            val_str = f'blocking {pct.min().values:.2f}–{pct.max().values:.2f}%'
+        else:
+            val_str = f'{block_diag} {float(block_freq.min()):.2f}–{float(block_freq.max()):.2f} m/deg'
+        print(f'    {ens_name}: {val_str}  ({time.time()-t0:.1f}s)')
 
         block_freq_ens[ens_name] = block_freq.compute()
 
@@ -341,6 +355,48 @@ def _blocking_2d(z500):
     ghgs = (z500 - z_s) / _DLAT2D
 
     return (ghgs > _GHGS_THRESH) & (ghgn < _GHGN_THRESH)
+
+
+def _ghgs_1d(z500):
+    """
+    South Z500 gradient (GHGS) at blocking latitudes averaged over 3 delta offsets.
+    Input z500 already subset to [_LAT_S, _LAT_N].
+    Returns DataArray (name, time, lon) in m / degree-lat.
+    Positive values: normal equatorward Z500 decrease (blocking criterion: GHGS > 0).
+    """
+    lat_vals = z500.lat.values
+
+    def _nidx(t):
+        return int(np.argmin(np.abs(lat_vals - t)))
+
+    parts = []
+    for d in _DELTAS:
+        z0     = z500.isel(lat=_nidx(_BLAT0 + d))
+        zs     = z500.isel(lat=_nidx(_BLATS + d))
+        dlat_s = float(lat_vals[_nidx(_BLAT0 + d)] - lat_vals[_nidx(_BLATS + d)])
+        parts.append((z0 - zs) / dlat_s)
+    return (parts[0] + parts[1] + parts[2]) / 3.0
+
+
+def _ghgn_1d(z500):
+    """
+    North Z500 gradient (GHGN) at blocking latitudes averaged over 3 delta offsets.
+    Input z500 already subset to [_LAT_S, _LAT_N].
+    Returns DataArray (name, time, lon) in m / degree-lat.
+    Negative values: reversed poleward gradient (blocking criterion: GHGN < -5).
+    """
+    lat_vals = z500.lat.values
+
+    def _nidx(t):
+        return int(np.argmin(np.abs(lat_vals - t)))
+
+    parts = []
+    for d in _DELTAS:
+        zn     = z500.isel(lat=_nidx(_BLATN + d))
+        z0     = z500.isel(lat=_nidx(_BLAT0 + d))
+        dlat_n = float(lat_vals[_nidx(_BLATN + d)] - lat_vals[_nidx(_BLAT0 + d)])
+        parts.append((zn - z0) / dlat_n)
+    return (parts[0] + parts[1] + parts[2]) / 3.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────

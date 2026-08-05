@@ -1,0 +1,34 @@
+#!/bin/bash
+#PBS -N era5_3d_climo
+#PBS -A P03010039
+#PBS -q main
+#PBS -l select=1:ncpus=4:mem=64GB
+#PBS -l walltime=02:00:00
+#PBS -j oe
+#PBS -o /glade/derecho/scratch/rneale/logs/era5_3d_climo_1deg.log
+
+set -e
+
+echo "=== ERA5 3D climatology job ==="
+echo "Start: $(date)"
+echo "Host:  $(hostname)"
+echo ""
+
+# Activate the conda environment that has xarray/dask
+# Adjust env name if needed
+source /etc/profile.d/conda.sh 2>/dev/null || true
+conda activate /glade/u/home/rneale/.conda/envs/pmp
+
+echo "Python: $(which python)"
+python -c "import xarray; print('xarray', xarray.__version__)"
+
+# Create log dir if needed
+mkdir -p /glade/derecho/scratch/rneale/logs
+
+# Run the climatology script
+# Remove variable arguments to process all; or list specific ones e.g. "t q"
+python /glade/work/rneale/git/python-scripts/CAM7_CESM3_dev/Claude/era5_3d_climo_1deg.py
+
+echo ""
+echo "End: $(date)"
+echo "=== Done ==="
