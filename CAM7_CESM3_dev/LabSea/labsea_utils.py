@@ -193,10 +193,34 @@ VARS = {
 VAR_LIST = ["ICEFRAC", "SHFLX", "LHFLX", "TS", "PRECT", "CLDLOW",
             "FSNS", "FLNS", "FSDS", "RESSURF"]
 
+# ---------------------------------------------------------------------------
+# MOM ocean variables (curvilinear grid, kept out of VAR_LIST above so the
+# atm-side loops don't touch them).  The notebook drives MOM plots via a
+# separate loop that uses the MOM-aware helpers below.
+# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Data loading
-# ---------------------------------------------------------------------------
+MOM_HIST_SUBDIR = "ocn/hist"
+MOM_STREAM      = "sfc"   # daily sfc-stream, contains mlotst
+MOM_STATIC_STREAM = "static"
+
+# Map internal name → MOM variable in the sfc stream.
+MOM_VAR_MAP = {
+    "MLD": "mlotst",   # Ocean mixed-layer thickness (sigma-T, m)
+}
+MOM_VAR_LIST = list(MOM_VAR_MAP.keys())
+
+VARS["MLD"] = {
+    "long_name": "Mixed-layer depth (σ$_T$)",
+    "units":     "m",
+    "scale":     1.0,
+    "offset":    0.0,
+    "cmap":      "cmo.deep" if False else "viridis",
+    # Deep winter mixing in Lab Sea reaches 500-2000 m in obs; sub-tropical
+    # summer values are 20-80 m.  Use widely-spaced levels.
+    "levels_jfm": np.array([25, 50, 100, 200, 400, 600, 800, 1200, 1600, 2000, 2500]),
+    "levels_jas": np.array([10, 20, 30, 40, 60, 80, 100, 150, 200, 300, 400]),
+}
+
 
 def _hist_dir(run_id):
     case = CASES[run_id]["case_name"]
@@ -271,6 +295,108 @@ def load_run(run_id, vars_needed, year_range=None, parallel=False):
             month=("time", ds["time"].dt.month.values),
         )
     return ds
+
+
+# ---------------------------------------------------------------------------
+# MOM (ocean) loading — curvilinear grid
+# ---------------------------------------------------------------------------
+
+def _mom_hist_dir(run_id):
+    case = CASES[run_id]["case_name"]
+    return os.path.join(ARCHIVE_ROOT, case, MOM_HIST_SUBDIR)
+
+
+def load_mom_static(run_id):
+    """Return the MOM static grid (geolat, geolon, wet, areacello) as a Dataset."""
+    case = CASES[run_id]["case_name"]
+    fpath = os.path.join(_mom_hist_dir(run_id),
+                         f"{case}.mom6.h.{MOM_STATIC_STREAM}.nc")
+    ds = xr.open_dataset(fpath, decode_times=False)
+    keep = [v for v in ("geolat", "geolon", "wet", "areacello") if v in ds]
+    return ds[keep]
+
+
+def list_mom_files(run_id, stream=None, year_range=None):
+    """Return sorted list of MOM history files for a stream (default 'sfc')."""
+    stream = stream or MOM_STREAM
+    case = CASES[run_id]["case_name"]
+    files = sorted(glob.glob(os.path.join(
+        _mom_hist_dir(run_id),
+        f"{case}.mom6.h.{stream}.*.nc")))
+    # skip tiled entries (trailing '.NNNN' after .nc) — keep the concatenated file
+    files = [f for f in files if f.endswith(".nc")]
+
+    if year_range is not None:
+        y0, y1 = year_range
+        keep = []
+        for f in files:
+            stem = os.path.splitext(os.path.basename(f))[0]
+            ym = stem.rsplit(".", 1)[-1]
+            try:
+                yy = int(ym.split("-")[0])
+            except ValueError:
+                continue
+            if y0 <= yy <= y1:
+                keep.append(f)
+        files = keep
+    return files
+
+
+def load_run_mom(run_id, mom_vars=None, year_range=None, parallel=False):
+    """
+    Open the MOM sfc daily stream, aggregate daily → monthly means, and attach
+    the static grid.  Returns an xarray dataset with keys named per MOM_VAR_MAP
+    (e.g. 'MLD'), plus 2D 'geolat', 'geolon' coordinates and 'wet', 'areacello'.
+    """
+    mom_vars = list(mom_vars or MOM_VAR_LIST)
+    file_vars = [MOM_VAR_MAP[v] for v in mom_vars if v in MOM_VAR_MAP]
+
+    files = list_mom_files(run_id, stream=MOM_STREAM, year_range=year_range)
+    if not files:
+        raise FileNotFoundError(
+            f"No MOM {MOM_STREAM} files for run {run_id} in {_mom_hist_dir(run_id)}"
+        )
+
+    def _pp(ds):
+        # Keep only the requested data variables — this drops MOM6's
+        # `average_T1`, `average_T2`, `average_DT`, `time_bounds`, etc. which
+        # can carry inconsistent time metadata between files and cause
+        # xarray to invent a spurious `time1` dimension on combine.
+        keep = [v for v in file_vars if v in ds.variables]
+        out = ds[keep]
+        # Belt-and-braces: strip any bounds-like coords that survived.
+        drop = [c for c in out.coords
+                if c not in out.dims and c not in ("time",)]
+        return out.reset_coords(drop, drop=True) if drop else out
+
+    ds = xr.open_mfdataset(
+        files, combine="nested", concat_dim="time",
+        parallel=parallel,
+        preprocess=_pp,
+        data_vars="minimal", coords="minimal", compat="override",
+        decode_times=xr.coders.CFDatetimeCoder(use_cftime=True),
+        decode_timedelta=False,
+    )
+
+    # Rename to canonical names (mlotst → MLD, etc.)
+    rename = {MOM_VAR_MAP[v]: v for v in mom_vars if MOM_VAR_MAP[v] in ds}
+    ds = ds.rename(rename)
+
+    # Daily → monthly means.  Use resample which preserves the cftime index
+    # (groupby-by-strftime would collapse it to strings and break downstream
+    # time arithmetic).
+    ds_mon = ds.resample(time="1MS").mean()
+    ds_mon = ds_mon.assign_coords(
+        year=("time", ds_mon["time"].dt.year.values),
+        month=("time", ds_mon["time"].dt.month.values),
+    )
+
+    # Attach static grid
+    stat = load_mom_static(run_id)
+    for c in stat.data_vars:
+        ds_mon[c] = stat[c]
+
+    return ds_mon
 
 
 # ---------------------------------------------------------------------------
@@ -579,3 +705,144 @@ def overlap_years(run_ids):
     y0 = max(r[0] for r in ranges)
     y1 = min(r[1] for r in ranges)
     return y0, y1
+
+
+# ---------------------------------------------------------------------------
+# MOM curvilinear-grid seasonal-mean / regional-mean / mapping
+# ---------------------------------------------------------------------------
+
+def _mom_geobox_mask(ds, region):
+    """Boolean mask on the MOM curvilinear grid for the given lat/lon box.
+
+    Uses geolat + normalised geolon (0-360) so the box is expressed in the
+    same convention as REGIONS.
+    """
+    r = REGIONS[region]
+    glon = (ds["geolon"] % 360.0)
+    glat = ds["geolat"]
+    m = (glat >= r["lat_min"]) & (glat <= r["lat_max"]) & \
+        (glon >= r["lon_min"]) & (glon <= r["lon_max"])
+    if "wet" in ds:
+        m = m & (ds["wet"] > 0.5)
+    return m
+
+
+def mom_seasonal_mean(ds, var, season, year_range=None):
+    """Season composite of a MOM variable in plot units, over ocean cells only."""
+    months = SEASONS[season]
+    da = ds[var]
+    if year_range is not None:
+        y0, y1 = year_range
+        da = da.where((ds["year"] >= y0) & (ds["year"] <= y1), drop=True)
+    da = da.where(ds["month"].isin(months), drop=True)
+    da_mean = da.mean(dim="time")
+    if "wet" in ds:
+        da_mean = da_mean.where(ds["wet"] > 0.5)
+    # Attach geolat/geolon so downstream plotting can find them
+    da_mean = da_mean.assign_coords(geolat=ds["geolat"],
+                                     geolon=ds["geolon"])
+    return apply_scale(da_mean, var)
+
+
+def mom_regional_mean_ts(ds, var, region):
+    """Area-weighted monthly ocean regional-mean timeseries on the MOM grid."""
+    da = ds[var]
+    mask = _mom_geobox_mask(ds, region)
+    if "areacello" in ds:
+        w = ds["areacello"].where(mask)
+    else:
+        w = mask.astype(float)
+    w = w.fillna(0.0)
+    total_w = w.sum(dim=("yh", "xh"))
+    ts = (da.where(mask) * w).sum(dim=("yh", "xh")) / total_w
+    return apply_scale(ts, var)
+
+
+def plot_pair_map_mom(fields, var, season, region="LabSea",
+                       save_dir=None, extra_box=None):
+    """Side-by-side maps for MOM curvilinear-grid fields (e.g. MLD).
+
+    fields : dict {run_id: DataArray with geolat, geolon coords} — order kept.
+    """
+    info = VARS[var]
+    key = "levels_jfm" if season == "JFM" else "levels_jas"
+    levels = info.get(key)
+    print(levels)
+   
+    if levels is None:
+        vmin = min(float(np.nanmin(f)) for f in fields.values())
+        vmax = max(float(np.nanmax(f)) for f in fields.values())
+        levels = np.linspace(vmin, vmax, 15)
+       
+        
+
+    r = REGIONS[region]
+    run_ids = list(fields.keys())
+    ncol = len(run_ids)
+    proj = ccrs.PlateCarree()
+    fig, axes = plt.subplots(
+        1, ncol, figsize=(6.5 * ncol, 5.5),
+        subplot_kw={"projection": proj},
+    )
+    if ncol == 1:
+        axes = [axes]
+
+    ims = []
+    for ax, rid in zip(axes, run_ids):
+        da = fields[rid]
+        glat = da["geolat"].values
+        glon = (da["geolon"].values % 360.0)
+        # Use contourf directly on the 2D geographic mesh (cartopy handles the
+        # curvilinear transform); mask cells outside the plot box for cleaner
+        # panel-mean statistics.
+        _setup_map_axes(ax, region)
+        im = ax.contourf(
+            glon, glat, da.values,
+            levels=levels, cmap=info["cmap"], extend="both",
+            transform=proj,
+        )
+        ims.append(im)
+        if extra_box is not None:
+            _region_box(ax, extra_box, edge_color="red")
+
+        # Area-weighted panel mean over the box
+        m_box = (glat >= r["lat_min"]) & (glat <= r["lat_max"]) & \
+                (glon >= r["lon_min"]) & (glon <= r["lon_max"])
+        vals = da.values
+        panel_mean = float(np.nanmean(vals[m_box])) if m_box.any() else float("nan")
+        label = CASES.get(rid, {}).get("label", rid)
+        ax.set_title(f"{label}   mean={panel_mean:.1f}",
+                     fontsize=12, fontweight="bold")
+
+    cbar_ax = fig.add_axes([0.15, 0.06, 0.7, 0.03])
+    cbar = fig.colorbar(ims[-1], cax=cbar_ax, orientation="horizontal", extend="both")
+    cbar.set_label(f"{info['long_name']} ({info['units']})", fontsize=12)
+
+    fig.suptitle(f"{var} — {info['long_name']} — {season}",
+                 fontsize=15, fontweight="bold", y=0.98)
+    fig.subplots_adjust(top=0.90, bottom=0.16, wspace=0.08)
+
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+        fname = os.path.join(save_dir, f"map_{var}_{season}_{region}.png")
+        fig.savefig(fname, dpi=140, bbox_inches="tight")
+        print(f"  saved {fname}")
+
+    return fig, axes
+
+
+def year_range_mom(run_id, stream=None):
+    """Return (y0, y1) inclusive from MOM sfc file names."""
+    stream = stream or MOM_STREAM
+    files = list_mom_files(run_id, stream=stream)
+    years = []
+    for f in files:
+        stem = os.path.splitext(os.path.basename(f))[0]
+        ym = stem.rsplit(".", 1)[-1]
+        try:
+            years.append(int(ym.split("-")[0]))
+        except ValueError:
+            pass
+    if not years:
+        return None
+    return min(years), max(years)

@@ -112,10 +112,18 @@ def resolve_waves_hayashi(q, n_day_win, spd):
     mlon, N = q.shape
     power = q.real**2 + q.imag**2   # (mlon, N)
 
-    # fftshift re-orders both axes so DC is at centre
-    # wave axis after shift: [±mlon/2, -(mlon/2-1), ..., -1, 0, 1, ..., mlon/2-1]
-    # freq axis after shift: [±N/2,    -(N/2-1),    ..., -1, 0, 1, ..., N/2-1    ]
-    ps = np.fft.fftshift(power)      # (mlon, N)
+    # Sign convention.  numpy's FFT uses exp(-i k n), so a wave
+    # cos(k·lambda - w·t) (eastward for k,w>0) has FFT power at (wave=+k, freq=-w)
+    # and its conjugate at (wave=-k, freq=+w).  Since we plot only positive
+    # frequency, the visible peak lands at negative wavenumber — the reverse of
+    # the standard WK convention.  Fix by reversing the wavenumber sign, which
+    # in Fourier index space means:  new[0]=old[0], new[k]=old[mlon-k].
+    power_sr = power.copy()
+    power_sr[1:, :] = power[1:, :][::-1, :]
+
+    # fftshift then places DC at the centre of the wave axis; wave label runs
+    # -mlon/2 .. +mlon/2-1 (Nyquist on the negative side only).
+    ps = np.fft.fftshift(power_sr)   # (mlon, N)
 
     # Build (mlon+1, N+1): duplicate Nyquist endpoints so axis spans -Nyq .. +Nyq
     pee = np.zeros((mlon + 1, N + 1))
@@ -186,7 +194,7 @@ def compute_wk_spectrum(x_np, lat_arr, spd=1, n_day_win=96, n_day_skip=-65,
     taper_win = cosine_taper_window(N, p=0.1)   # (N,)
 
     # ----- Pre-compute detrended + tapered windows (all lats at once) -----
-    windows = []   # list of (nlat, mlon, N) float arrays
+    windows = []   # list of (N, nlat, mlon) float arrays — sym/asym already applied
     nt_strt = 0
     for _nw in range(n_window):
         nt_end = nt_strt + N
@@ -198,52 +206,92 @@ def compute_wk_spectrum(x_np, lat_arr, spd=1, n_day_win=96, n_day_skip=-65,
         windows.append(seg)                          # (N, nlat, mlon)
         nt_strt += N + n_samp_skip
 
-    # ----- Accumulate power spectrum (lat, wave, freq) -----
-    # Placeholder: first resolve to get axis sizes
-    _q0 = np.fft.fft(windows[0][:, 0, :], axis=-1) / mlon  # (N, mlon)
-    _q0 = np.fft.fft(_q0, axis=0) / N                       # (N, mlon)
-    _q0 = _q0.T                                              # (mlon, N)
+    return _accumulate_and_smooth(windows, spd, n_day_win)
+
+
+def compute_wk_spectrum_from_segments(segments, spd=1, vscale=1.0,
+                                       detrend_seg=True):
+    """WK power spectrum from a list of pre-cut segments (pooled ensemble).
+
+    Each segment is treated as one independent window in the spectral average —
+    intended for S2S hindcast pools where every (start_date, member) contributes
+    a single fixed-length slice at a chosen lead day.
+
+    Parameters
+    ----------
+    segments   : list of (N, nlat, mlon) float arrays; N = n_day_win * spd, all
+                 the same shape.  Sym/asym decomposition and taper are applied
+                 here — pass raw (untapered, undecomposed) segments.
+    spd        : samples per day
+    vscale     : scale factor applied to each segment
+    detrend_seg: linear-detrend each segment along time (default True)
+
+    Returns
+    -------
+    dict — same keys as compute_wk_spectrum.
+    """
+    if not segments:
+        raise ValueError("segments list is empty")
+    N, nlat, mlon = segments[0].shape
+    n_day_win = N // spd
+    taper_win = cosine_taper_window(N, p=0.1)
+
+    windows = []
+    for seg in segments:
+        s = seg.astype(np.float64) * vscale
+        s = decompose_sym_asym(s)                    # per-segment sym/asym
+        if detrend_seg:
+            s = scipy.signal.detrend(s, axis=0)      # per-segment detrend
+        s *= taper_win[:, np.newaxis, np.newaxis]
+        windows.append(s)
+
+    return _accumulate_and_smooth(windows, spd, n_day_win)
+
+
+def _accumulate_and_smooth(windows, spd, n_day_win):
+    """Accumulate WK power over a list of prepared segments, then smooth."""
+    n_window = len(windows)
+    N, nlat, mlon = windows[0].shape
+
+    # Placeholder FFT to get axis sizes
+    _q0 = np.fft.fft(windows[0][:, 0, :], axis=-1) / mlon
+    _q0 = np.fft.fft(_q0, axis=0) / N
+    _q0 = _q0.T
     _, wave_arr, freq_arr = resolve_waves_hayashi(_q0, n_day_win, spd)
 
     peeAS = np.zeros((nlat, mlon + 1, N + 1))
 
     for nl in range(nlat):
-        for nw, seg in enumerate(windows):
-            work = seg[:, nl, :]   # (N, mlon) – time first
-            # Spatial FFT (over lon, axis 1), normalize
-            q = np.fft.fft(work, axis=1) / mlon    # (N, mlon) complex
-            # Temporal FFT (over time, axis 0), normalize
-            q = np.fft.fft(q, axis=0) / N          # (N, mlon) complex
-            q = q.T                                  # (mlon, N)
+        for seg in windows:
+            work = seg[:, nl, :]                     # (N, mlon)
+            q = np.fft.fft(work, axis=1) / mlon
+            q = np.fft.fft(q, axis=0) / N
+            q = q.T                                   # (mlon, N)
             pee, _, _ = resolve_waves_hayashi(q, n_day_win, spd)
             peeAS[nl] += pee / n_window
 
     # ----- Sum latitudes for antisym / sym / background -----
     N2 = nlat // 2
     if nlat % 2 == 0:
-        # NH (antisymmetric): indices N2..nlat-1
-        # SH (symmetric):     indices 0..N2-1
         psumanti_nl = 2.0 * peeAS[N2:nlat].sum(axis=0)
         psumsym_nl  = 2.0 * peeAS[0:N2].sum(axis=0)
     else:
         psumanti_nl = 2.0 * peeAS[N2+1:nlat].sum(axis=0)
         psumsym_nl  = 2.0 * peeAS[0:N2+1].sum(axis=0)
 
-    # Background = sum over all latitudes
     psumb_nl = peeAS.sum(axis=0)
 
-    # Set DC (freq=0) to NaN
-    i_dc = N // 2  # index of zero frequency in freq_arr
+    # DC (freq=0) to NaN
+    i_dc = N // 2
     psumanti_nl[:, i_dc] = np.nan
     psumsym_nl[:, i_dc]  = np.nan
     psumb_nl[:, i_dc]    = np.nan
 
-    # ----- Smooth raw spectra (psumanti, psumsym) – freq dimension only -----
-    # One pass of 1-2-1 over positive freq range, wavenumbers -27..27
+    # ----- Smooth raw spectra – freq dimension only -----
     i_w_lo = np.searchsorted(wave_arr, -27)
     i_w_hi = np.searchsorted(wave_arr,  27) + 1
-    i_f_lo = i_dc + 1          # first positive freq (after DC)
-    i_f_hi = N                  # up to (but not including) +Nyquist endpoint
+    i_f_lo = i_dc + 1
+    i_f_hi = N
 
     for iw in range(i_w_lo, i_w_hi):
         sl = psumanti_nl[iw, i_f_lo:i_f_hi]
@@ -257,7 +305,6 @@ def compute_wk_spectrum(x_np, lat_arr, spd=1, n_day_win=96, n_day_skip=-65,
         psumsym_nl[iw, i_f_lo:i_f_hi] = sl_c
 
     # ----- Background spectrum: heavy smoothing -----
-    # Pass 1: frequency-dependent wavenumber smoothing
     for it in range(i_dc + 1, N + 1):
         f_val = freq_arr[it]
         if f_val < 0.1:
@@ -272,7 +319,6 @@ def compute_wk_spectrum(x_np, lat_arr, spd=1, n_day_win=96, n_day_skip=-65,
         smooth121_1d(sl, n_passes=n_passes)
         psumb_nl[i_w_lo:i_w_hi, it] = sl
 
-    # Pass 2: frequency smoothing for each wavenumber up to 0.8 cpd
     i_f_08 = int(np.searchsorted(freq_arr, 0.8))
     i_f_08 = min(i_f_08, N)
     for iw in range(i_w_lo, i_w_hi):
@@ -280,7 +326,6 @@ def compute_wk_spectrum(x_np, lat_arr, spd=1, n_day_win=96, n_day_skip=-65,
         smooth121_1d(sl, n_passes=10)
         psumb_nl[iw, i_f_lo:i_f_08 + 1] = sl
 
-    # Re-zero DC after smoothing
     psumb_nl[:, i_dc] = np.nan
 
     return dict(
@@ -534,7 +579,8 @@ def load_trmm_gpcp_data(source, var='PRECT', yr0=None, yr1=None, lat_bound=15,
     vname = var if var in ds else list(ds.data_vars)[0]
     da = ds[vname]
     if yr0 is not None:
-        da = da.sel(time=slice(str(yr0), str(yr1)))
+        # cftime indexes require 4-digit year strings ("0030", not "30")
+        da = da.sel(time=slice(f"{int(yr0):04d}", f"{int(yr1):04d}"))
     da = _ensure_s2n(da)
     da = _lat_slice(da, lat_bound)
     x_np = da.values.astype(np.float32)
@@ -591,15 +637,15 @@ def _make_dmeans_from_h2a(case, var, out_dir):
 
 
 def load_model_data(case, var='PRECT', yr0=None, yr1=None, lat_bound=15,
-                    vscale=86400. * 1000.,
                     data_dir=_RNEALE_ARCHIVE):
-    """Load CESM/CAM daily time-series data.
+    """Load CESM/CAM daily time-series data in the file's native units.
 
     Looks first in {data_dir}/{case}/tseries/ for pre-built dmeans files.
     If none are found, builds one from h2a files in hannay's archive and
     saves it to data_dir for future use.
 
-    vscale: unit conversion (default: m/s → mm/day for PRECT).
+    NB: no unit conversion is applied here — the caller is expected to pass
+    ``vscale`` to ``compute_wk_spectrum`` (e.g. 86400*1000 for PRECT m/s → mm/day).
     """
     fdir = Path(data_dir) / case / 'tseries'
     candidates = sorted(fdir.glob(f'{case}_dmeans_ts_{var}*.nc'))
@@ -612,10 +658,10 @@ def load_model_data(case, var='PRECT', yr0=None, yr1=None, lat_bound=15,
     ds = xr.open_mfdataset(candidates, combine='by_coords')
     da = ds[var]
     if yr0 is not None:
-        da = da.sel(time=slice(str(yr0), str(yr1)))
+        # cftime indexes require 4-digit year strings ("0030", not "30")
+        da = da.sel(time=slice(f"{int(yr0):04d}", f"{int(yr1):04d}"))
     da = _ensure_s2n(da)
     da = _lat_slice(da, lat_bound)
-    da = da * vscale
     x_np = da.values.astype(np.float32)
     lat  = da['lat'].values if 'lat' in da.dims else da['latitude'].values
     lon  = da['lon'].values if 'lon' in da.dims else da['longitude'].values
@@ -701,16 +747,34 @@ _WAVE_LABELS = {
     3: 'n=1 ER',   4: 'Kelvin',  5: 'n=1 IG',
     0: 'MRG',      1: 'n=0 IG', 2: 'n=2 IG',
 }
+# Preferred wavenumber position for placing equivalent-depth number labels on
+# each wave-type's set of dispersion curves.  Chosen so labels sit inside the
+# usual [-15,15] plotting window and avoid heavy overlap.
+_DEPTH_LABEL_WN = {
+    0:  -5,   # MRG      (westward branch)
+    1:   6,   # n=0 IG   (eastward branch)
+    2:   3,   # n=2 IG
+    3: -10,   # n=1 ER   (westward)
+    4:   8,   # Kelvin   (eastward)
+    5:   3,   # n=1 IG
+}
 
 
 def add_dispersion_curves(ax, Apzwn, Afreq, plot_type='sym',
                            min_wav=-15, max_wav=15, max_freq=0.8,
-                           add_labels=True):
+                           add_labels=True,
+                           depth_labels=('50', '25', '12'),
+                           label_fontsize=10):
     """Overlay equatorial wave dispersion curves on a WK panel axes.
 
     Parameters
     ----------
-    plot_type : 'sym' or 'asym' – which wave families to plot
+    plot_type    : 'sym' or 'asym' – which wave families to plot
+    add_labels   : if True, annotate each dispersion curve with its equivalent
+                   depth number (no 'h=', no wave-type text)
+    depth_labels : text (one per equivalent depth) matching the order used
+                   when calling gen_dispersion_curves(ahe=(...))
+    label_fontsize : font size for the depth annotations
     """
     wtypes = _SYM_WAVE_TYPES if plot_type == 'sym' else _ASYM_WAVE_TYPES
     for wt in wtypes:
@@ -723,25 +787,29 @@ def add_dispersion_curves(ax, Apzwn, Afreq, plot_type='sym',
             if mask.any():
                 ax.plot(s[mask], frq[mask], color=col, lw=1.5, zorder=5)
 
-    if add_labels:
-        # Equivalent depth labels at h=50, 25, 12 for Kelvin (wt=4) or MJO box
-        for wt in wtypes:
-            if wt == 4:  # Kelvin
-                for ed, h_lbl in enumerate(('h=50', 'h=25', 'h=12')):
-                    s   = Apzwn[wt, ed, :]
-                    frq = Afreq[wt, ed, :]
-                    # find label position near wavenumber 8
-                    idx = np.argmin(np.abs(s - 8))
-                    if np.isfinite(frq[idx]) and frq[idx] < max_freq:
-                        ax.text(s[idx], frq[idx], h_lbl, fontsize=6,
-                                color=_DISP_COLORS[wt], va='bottom')
-            if wt in (3, 5):  # n=1 ER, n=1 IG
-                s   = Apzwn[wt, 0, :]
-                frq = Afreq[wt, 0, :]
-                mid = len(s) // 2
-                if np.isfinite(frq[mid]) and frq[mid] < max_freq:
-                    ax.text(s[mid], frq[mid], _WAVE_LABELS[wt], fontsize=6,
-                            color=_DISP_COLORS[wt], va='bottom')
+    if not add_labels:
+        return
+
+    # Annotate each (wave type, equivalent depth) curve with just the depth
+    # number, positioned near a wave-type-specific target wavenumber.
+    n_ed = min(Apzwn.shape[1], len(depth_labels))
+    for wt in wtypes:
+        x_target = _DEPTH_LABEL_WN.get(wt, 0)
+        col = _DISP_COLORS[wt]
+        for ed in range(n_ed):
+            s   = Apzwn[wt, ed, :]
+            frq = Afreq[wt, ed, :]
+            mask = np.isfinite(s) & np.isfinite(frq) & \
+                   (s >= min_wav) & (s <= max_wav) & (frq <= max_freq)
+            if not mask.any():
+                continue
+            s_v, frq_v = s[mask], frq[mask]
+            idx = int(np.argmin(np.abs(s_v - x_target)))
+            ax.text(s_v[idx], frq_v[idx], depth_labels[ed],
+                    fontsize=label_fontsize, fontweight='bold',
+                    color=col, ha='center', va='bottom', zorder=6,
+                    bbox=dict(facecolor='white', edgecolor='none',
+                              alpha=0.6, pad=0.5))
 
 
 def _wk_axes_setup(ax, min_wav, max_wav, max_freq, title=''):
@@ -766,6 +834,7 @@ def plot_wk_panel(results, case_labels, var_name='PRECT', lat_bound=15,
                   add_mjo_box=True,
                   min_wav=-15, max_wav=15, max_freq=0.8,
                   cmap='RdBu_r', cmap_ratio='RdBu_r',
+                  log_cutoff=None,
                   save_dir='.', fig_prefix='kf_pan'):
     """Create 2×2 (or n-panel) WK spectral plots.
 
@@ -782,6 +851,9 @@ def plot_wk_panel(results, case_labels, var_name='PRECT', lat_bound=15,
     fig_*_levels: explicit contour levels (list/array); if None, auto
     anom_plot   : if True, plot ratio to results[0] rather than full field
     Apzwn, Afreq: dispersion curve arrays from gen_dispersion_curves()
+    log_cutoff  : scalar (log10 units) — for the full-field log10 panels
+                  (asym / sym / bg) any cell with data below this value is
+                  drawn transparent.  None disables masking.
     save_dir    : directory for saved figures
     fig_prefix  : filename prefix
 
@@ -798,9 +870,15 @@ def plot_wk_panel(results, case_labels, var_name='PRECT', lat_bound=15,
         fig_1_levels = np.linspace(-1.0, 0.4, 15)
     if fig_2_levels is None:
         fig_2_levels = np.linspace(-1.0, 0.4, 15)
+    # Ratio-to-background levels: equal numbers of intervals below and above 1
+    # so that (with BoundaryNorm below) 1.0 sits at the visual centre of the
+    # colorbar.  Steps grow progressively wider above 1 so strong MJO-region
+    # peaks (up to ~5× background) still get their own distinct red shade.
+    #   6 intervals below 1: 0.4-0.5-0.6-0.7-0.8-0.9-1.0
+    #   6 intervals above 1: 1.0-1.1-1.25-1.5-1.75-2.5-5.0
     if fig_3a_levels is None:
-        fig_3a_levels = np.array([0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.15,
-                                   1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.6])
+        fig_3a_levels = np.array([0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+                                   1.0, 1.1, 1.25, 1.5, 1.75, 2.5, 5.0])
     if fig_3b_levels is None:
         fig_3b_levels = fig_3a_levels.copy()
     if anom_levels is None:
@@ -872,6 +950,10 @@ def plot_wk_panel(results, case_labels, var_name='PRECT', lat_bound=15,
                     data = anti_nl / bg_nl
                 else:
                     data = sym_nl / bg_nl
+                # Mask out weak values on the log10 full-field panels so those
+                # cells render transparent (contourf skips NaNs).
+                if log_cutoff is not None and pt_key in ('asym', 'sym', 'bg'):
+                    data = np.where(data < log_cutoff, np.nan, data)
                 lev = levels
 
             # Subset to plot range (wave × freq, positive freq only)
@@ -882,21 +964,40 @@ def plot_wk_panel(results, case_labels, var_name='PRECT', lat_bound=15,
             plot_data = data[iw0_:iw1_, if0_:if1_].T   # (freq, wave) for contourf
 
             W, F = np.meshgrid(w[iw0_:iw1_], f[if0_:if1_])
-            cf = ax.contourf(W, F, plot_data, levels=lev, cmap=cm, extend='both')
-            plt.colorbar(cf, ax=ax, shrink=0.8, pad=0.02)
+            # For the ratio-to-background panels the levels are asymmetric
+            # around 1 (fine below, progressively wider above).  Use a
+            # BoundaryNorm so each level interval gets equal colorbar length —
+            # combined with equal counts of intervals below/above 1 this puts
+            # 1.0 exactly at the colorbar's visual centre, and larger red values
+            # progressively span the top end of the colormap.
+            if pt_key in ('sym_r', 'asym_r'):
+                cmap_obj = plt.get_cmap(cm)
+                norm = mcolors.BoundaryNorm(lev, ncolors=cmap_obj.N, extend='both')
+                cf = ax.contourf(W, F, plot_data, levels=lev, cmap=cm,
+                                 norm=norm, extend='both')
+                cbar = plt.colorbar(cf, ax=ax, shrink=0.8, pad=0.02,
+                                    spacing='uniform', ticks=lev)
+                cbar.ax.tick_params(labelsize=7)
+            else:
+                cf = ax.contourf(W, F, plot_data, levels=lev, cmap=cm, extend='both')
+                plt.colorbar(cf, ax=ax, shrink=0.8, pad=0.02)
 
             add_hor_vert_lines(ax, min_wav=min_wav, max_wav=max_wav)
 
             if add_disp_lines and Apzwn is not None and Afreq is not None:
                 disp_type = 'sym' if pt_key in ('sym', 'bg', 'sym_r') else 'asym'
+                # Only annotate the equivalent-depth numbers on the first panel
+                # of the /background (ratio) plots.
+                label_here = (ic == 0 and pt_key in ('sym_r', 'asym_r'))
                 add_dispersion_curves(ax, Apzwn, Afreq, plot_type=disp_type,
                                       min_wav=min_wav, max_wav=max_wav,
-                                      max_freq=max_freq)
+                                      max_freq=max_freq,
+                                      add_labels=label_here)
 
-            if add_mjo_box and pt_key in ('asym_r', 'sym_r', 'sym', 'asym'):
-                # MJO box: wavenumber 0-5, freq 0.015-0.05
+            if add_mjo_box and pt_key in ('sym_r', 'sym'):
+                # MJO band: wavenumber 1..5 eastward, period ~30-80 d
                 from matplotlib.patches import Rectangle
-                rect = Rectangle((0, 0.015), 5, 0.05 - 0.015,
+                rect = Rectangle((1, 1./80), 4, 1./30 - 1./80,
                                   fill=False, edgecolor='orange', lw=1.5)
                 ax.add_patch(rect)
 
