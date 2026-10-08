@@ -54,6 +54,12 @@ import xarray as xr
 DATA_DIR  = Path('/glade/campaign/cesm/development/cross-wg/S2S/CESM2/S2SHINDCASTS/Z3/')
 CACHE_DIR = Path('/glade/work/rneale/python-netcdf/hindcast_blocking')
 
+# ── NOAA SFS beta1 reforecast (S3) defaults ─────────────────────────────
+SFS_BUCKET      = 's3://noaa-oar-sfsdev-pds/experiments/beta1/reforecast'
+SFS_CACHE_DIR   = Path('/glade/derecho/scratch/rneale/NOAA_SFS')
+SFS_INIT_MONTHS = ('03', '04', '05', '06', '07', '08', '11')  # daily; 09 has monthly only
+_SFS_FILL       = 9.999000260554009e+20      # native missing_value in the zarr
+
 _LEV500 = 500.0   # hPa
 
 # ── Davini et al. (2012) blocking thresholds — identical to blocking_utils.py ─
@@ -321,6 +327,152 @@ def build_z500_cache(data_dir:   Path | str = DATA_DIR,
     print('\nbuild_z500_cache: done.')
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# NOAA SFS beta1 reforecast → Z500 cache
+# Produces the same on-disk layout as build_z500_cache so every downstream
+# helper (z500_cache_status, load_z500_for_leadday, block_freq_all_leaddays,
+# ERA5 verification) works unchanged — just point at SFS_CACHE_DIR.
+# Requires s3fs + zarr in the environment (fsspec is used with anon=True).
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_z500_cache_from_sfs(cache_dir:  Path | str = SFS_CACHE_DIR,
+                              months:     tuple[str, ...] | list[str] = SFS_INIT_MONTHS,
+                              years:      list[int] | None = None,
+                              members:    list[int] | None = None,
+                              n_leaddays: int  = 46,
+                              overwrite:  bool = False,
+                              bucket:     str  = SFS_BUCKET) -> None:
+    """
+    Ingest Z500 from the NOAA SFS beta1 reforecast into per-(member, year)
+    NetCDFs matching the layout produced by build_z500_cache.
+
+    Source:  {bucket}/{MM}/atm_daily.zarr  with variable HGT_500mb (already
+    in metres — no /g conversion needed) and dims
+    (member=11, init=35, lead=47, lat=181, lon=360).
+
+    Output:  {cache_dir}/z500_hindcast_m{MM:02d}_{YYYY}.nc
+      dims:  (start_date, lead_day, lat, lon)
+      var:   Z500 in metres, lead_day = 1..n_leaddays (SFS lead indices 0..n-1)
+      NaN where the source held the 9.999e+20 fill value.
+
+    Multiple init months contribute to the same (member, year) file — start
+    dates are pooled and sorted chronologically.  Members are labeled by
+    integer index into the zarr 'member' coordinate ('000' → 0, '001' → 1, …).
+
+    Parameters
+    ----------
+    months     : subset of the currently published SFS init months (2-digit
+                 strings). Default = all of {03,04,05,06,07,08,09,11}.
+    years      : restrict inits to these calendar years (None → all 1991-2025).
+    members    : integer member subset (None → all 11).
+    n_leaddays : lead days to retain; SFS has 47 (index 0..46), we keep the
+                 first n_leaddays and label them lead_day = 1..n_leaddays to
+                 match the CESM cache convention.
+    overwrite  : rebuild output files even if they already exist.
+    bucket     : root S3 path; override for a different SFS release.
+    """
+    import warnings
+    import fsspec
+
+    cache_dir = Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    member_set = set(members) if members is not None else None
+    year_set   = set(years)   if years   is not None else None
+
+    print(f'build_z500_cache_from_sfs: months={list(months)}  '
+          f'years={years or "all"}  members={members or "all"}  '
+          f'n_leaddays={n_leaddays}  →  {cache_dir}')
+
+    # Pool by (member_int, year) → list of lazy DataArrays
+    pool: dict[tuple[int, int], list[xr.DataArray]] = {}
+
+    for mm in months:
+        url = f'{bucket}/{mm}/atm_daily.zarr'
+        print(f'  opening {url}')
+        mp  = fsspec.get_mapper(url, anon=True)
+        # Silence xarray's FutureWarning about timedelta decoding on the 'lead'
+        # coord — we explicitly opt out via decode_timedelta=False below.
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=FutureWarning)
+                ds = xr.decode_cf(
+                    xr.open_zarr(mp, consolidated=True),
+                    decode_timedelta=False,
+                )
+        except Exception as e:
+            # Some month folders exist without a daily zarr (e.g. beta1/09
+            # ships only atm_monthly.zarr). Skip and keep going.
+            print(f'    SKIP {mm}: no readable atm_daily.zarr ({type(e).__name__})')
+            continue
+
+        z = ds['HGT_500mb'].where(ds['HGT_500mb'] != _SFS_FILL)
+        z = z.isel(lead=slice(0, n_leaddays))
+        z = z.assign_coords(lead=np.arange(1, n_leaddays + 1))
+        z = z.rename({'lead': 'lead_day', 'init': 'start_date'})
+
+        inits    = pd.DatetimeIndex(z['start_date'].values)
+        mem_vals = z['member'].values
+
+        for mi, mem_s in enumerate(mem_vals):
+            mem_int = int(mem_s)
+            if member_set is not None and mem_int not in member_set:
+                continue
+            for yr in sorted({d.year for d in inits}):
+                if year_set is not None and yr not in year_set:
+                    continue
+                positions = np.where(inits.year == yr)[0]
+                if positions.size == 0:
+                    continue
+                da = (z.isel(member=mi, start_date=positions)
+                        .drop_vars(['member'], errors='ignore'))
+                pool.setdefault((mem_int, yr), []).append(da)
+
+    if not pool:
+        raise RuntimeError('No (member, year) combinations matched the filters.')
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
+    user    = getpass.getuser()
+    n_files = len(pool)
+    print(f'\n  → materializing {n_files} (member, year) file(s)')
+
+    for i, ((mem, yr), das) in enumerate(sorted(pool.items()), 1):
+        out_file = _z500_cache_path(mem, yr, cache_dir)
+        if out_file.exists() and not overwrite:
+            print(f'  [{i}/{n_files}] m{mem:02d} {yr}: exists, skipping → {out_file.name}')
+            continue
+
+        t0 = time.time()
+        arr = xr.concat(das, dim='start_date').sortby('start_date')
+        arr = arr.astype('float32').load()                 # pull chunks from S3
+
+        arr.name  = 'Z500'
+        arr.attrs = {'units':     'm',
+                     'long_name': 'Geopotential Height at 500 hPa',
+                     'source':    'NOAA SFS beta1 reforecast HGT_500mb'}
+        starts = pd.DatetimeIndex(arr['start_date'].values)
+
+        ds_out = arr.to_dataset()
+        ds_out.attrs = {
+            'title':          'NOAA SFS beta1 reforecast Z500 cache',
+            'created':        now_utc,
+            'created_by':     user,
+            'source_bucket':  bucket,
+            'source_months':  ','.join(months),
+            'year':           str(yr),
+            'member':         f'm{mem:02d}',
+            'n_leaddays':     str(n_leaddays),
+            'n_start_dates':  str(len(starts)),
+            'blocking_ref':   'Davini et al. (2012)',
+        }
+        ds_out.to_netcdf(out_file)
+        print(f'  [{i}/{n_files}] m{mem:02d} {yr}: {len(starts)} starts '
+              f'({starts[0].date()} → {starts[-1].date()})  '
+              f'({time.time()-t0:.1f}s)  → {out_file.name}')
+
+    print('\nbuild_z500_cache_from_sfs: done.')
+
+
 def z500_cache_status(cache_dir: Path | str = CACHE_DIR) -> None:
     """Print which (member, year) cache files exist in cache_dir."""
     cache_dir = Path(cache_dir)
@@ -545,9 +697,12 @@ def _load_era5_verify_z500(era5_dir: Path, years: list[int]) -> xr.DataArray:
     """
     Load and concatenate per-year ERA5 verification files; return Z500 in m.
 
-    Files use 'valid_time' as the time coordinate and have a pressure_level
-    dimension of size 1 that is squeezed away.  'valid_time' is renamed to
-    'time' for consistency with downstream helpers.
+    Handles two file schemas seen in this archive:
+      • pre-2015:  dims (time, lat, lon)                       — variable 'z'
+      • 2015+   :  dims (valid_time, pressure_level=1, lat, lon)
+
+    A single-length 'pressure_level' is squeezed if present; 'valid_time' is
+    renamed to 'time' if present.  Missing years are reported and skipped.
     """
     das = []
     for yr in sorted(set(years)):
@@ -556,8 +711,11 @@ def _load_era5_verify_z500(era5_dir: Path, years: list[int]) -> xr.DataArray:
             print(f'  WARNING: ERA5 verify file missing: {fpath.name}')
             continue
         ds = xr.open_dataset(fpath)
-        z  = (ds['z'] / _G).squeeze('pressure_level', drop=True)
-        z  = z.rename({'valid_time': 'time'})
+        z  = ds['z'] / _G
+        if 'pressure_level' in z.dims:
+            z = z.squeeze('pressure_level', drop=True)
+        if 'valid_time' in z.dims:
+            z = z.rename({'valid_time': 'time'})
         das.append(z)
         ds.close()
     if not das:
@@ -565,32 +723,76 @@ def _load_era5_verify_z500(era5_dir: Path, years: list[int]) -> xr.DataArray:
     return xr.concat(das, dim='time')
 
 
+def _load_one_year_era5_verify(era5_dir: Path, yr: int,
+                                season: str | None) -> xr.DataArray | None:
+    """
+    Load a single year's ERA5 verify file, filter to *season* days, return
+    Z500 in metres with time dim renamed to 'hindcast'.  Returns None if
+    the file is missing or the season slice is empty.
+    """
+    fpath = era5_dir / _ERA5_VERIFY_PAT.format(year=yr)
+    if not fpath.exists():
+        print(f'  WARNING: ERA5 verify file missing: {fpath.name}')
+        return None
+    ds = xr.open_dataset(fpath)
+    z  = ds['z'] / _G
+    if 'pressure_level' in z.dims:
+        z = z.squeeze('pressure_level', drop=True)
+    if 'valid_time' in z.dims:
+        z = z.rename({'valid_time': 'time'})
+    if season is not None:
+        valid_months = _SEASON_MONTHS[season.upper()]
+        t = pd.DatetimeIndex(z.time.values)
+        z = z.isel(time=t.month.isin(valid_months))
+    ds.close()
+    if z.sizes['time'] == 0:
+        return None
+    z = z.astype('float32').load().rename({'time': 'hindcast'})
+    return z
+
+
+def _accumulate_era5_verify(era5_dir: Path | str,
+                             years:    list[int],
+                             season:   str | None,
+                             per_year_metric,
+                             label:    str):
+    """
+    Fold *per_year_metric* over the ERA5 verify record, one year at a time.
+
+    Bounds peak memory to ~one season × one year (~380 MB at 1°) — the
+    previous concat-then-compute path materialised the full multi-decade
+    array before calling .compute() and OOM'd on multi-decade selections.
+    """
+    era5_dir = Path(era5_dir)
+    weighted = None
+    total_days = 0
+    for yr in sorted(set(years)):
+        z = _load_one_year_era5_verify(era5_dir, yr, season)
+        if z is None:
+            continue
+        n = z.sizes['hindcast']
+        contrib = per_year_metric(z).sum('hindcast').compute()
+        weighted   = contrib if weighted is None else weighted + contrib
+        total_days += n
+    if weighted is None or total_days == 0:
+        raise ValueError(
+            f'{label}: no ERA5 verify days matched years / season filter.'
+        )
+    return weighted / total_days, total_days
+
+
 def era5_verify_freq_1d(era5_dir: Path | str,
                         years:    list[int],
                         season:   str | None = None) -> xr.DataArray:
     """
-    ERA5 1D blocking frequency for the given hindcast years filtered to *season*.
-
-    Loads per-year ERA5 files, selects all season days, and returns a single
-    blocking-frequency line — the observed truth for comparison with hindcast lines.
+    ERA5 1D blocking frequency across the given hindcast years, filtered to
+    *season*.  Streams year-by-year to keep peak memory bounded.
 
     Returns DataArray(lon) blocking frequency in [0, 1].
     """
-    era5_dir = Path(era5_dir)
-    z_all    = _load_era5_verify_z500(era5_dir, years)
-
-    if season is not None:
-        valid_months = _SEASON_MONTHS[season.upper()]
-        era5_time    = pd.DatetimeIndex(z_all.time.values)
-        keep         = era5_time.month.isin(valid_months)
-        z_all        = z_all.isel(time=keep)
-
-    if z_all.sizes['time'] == 0:
-        raise ValueError('No ERA5 verify days matched years / season filter.')
-
-    z_all = z_all.rename({'time': 'hindcast'})
-    bf    = _blocking_1d(z_all).mean('hindcast').compute()
-    print(f'era5_verify_freq_1d: {z_all.sizes["hindcast"]} days  '
+    bf, n = _accumulate_era5_verify(
+        era5_dir, years, season, _blocking_1d, 'era5_verify_freq_1d')
+    print(f'era5_verify_freq_1d: {n} days  '
           f'mean blocking {float(bf.mean()) * 100:.1f}%')
     return bf
 
@@ -599,25 +801,14 @@ def era5_verify_freq_2d(era5_dir: Path | str,
                         years:    list[int],
                         season:   str | None = None) -> xr.DataArray:
     """
-    ERA5 2D blocking frequency for the given hindcast years filtered to *season*.
+    ERA5 2D blocking frequency across the given hindcast years, filtered to
+    *season*.  Streams year-by-year to keep peak memory bounded.
 
     Returns DataArray(lat, lon) blocking frequency in [0, 1].
     """
-    era5_dir = Path(era5_dir)
-    z_all    = _load_era5_verify_z500(era5_dir, years)
-
-    if season is not None:
-        valid_months = _SEASON_MONTHS[season.upper()]
-        era5_time    = pd.DatetimeIndex(z_all.time.values)
-        keep         = era5_time.month.isin(valid_months)
-        z_all        = z_all.isel(time=keep)
-
-    if z_all.sizes['time'] == 0:
-        raise ValueError('No ERA5 verify days matched years / season filter.')
-
-    z_all = z_all.rename({'time': 'hindcast'})
-    bf    = _blocking_2d(z_all).mean('hindcast').compute()
-    print(f'era5_verify_freq_2d: {z_all.sizes["hindcast"]} days  '
+    bf, n = _accumulate_era5_verify(
+        era5_dir, years, season, _blocking_2d, 'era5_verify_freq_2d')
+    print(f'era5_verify_freq_2d: {n} days  '
           f'mean blocking {float(bf.mean()) * 100:.1f}%')
     return bf
 
@@ -627,37 +818,15 @@ def era5_verify_gradient(era5_dir: Path | str,
                           season:   str | None = None,
                           diag:     str = 'GHGS') -> xr.DataArray:
     """
-    Mean Z500 gradient (GHGS or GHGN) for the given hindcast years filtered
-    to *season* — the observed gradient strength for verification.
-
-    Parameters
-    ----------
-    era5_dir : directory containing per-year ERA5 verification files
-    years    : hindcast years to include
-    season   : 'DJF'|'MAM'|'JJA'|'SON'|None
-    diag     : 'GHGS' or 'GHGN'
-
-    Returns
-    -------
-    DataArray(lon)  gradient in m / degree-lat
+    Mean Z500 gradient (GHGS or GHGN) across the given hindcast years,
+    filtered to *season*.  Streams year-by-year to keep peak memory bounded.
     """
     if diag not in ('GHGS', 'GHGN'):
         raise ValueError(f'diag must be "GHGS" or "GHGN", got "{diag}"')
-    era5_dir = Path(era5_dir)
-    z_all    = _load_era5_verify_z500(era5_dir, years)
-
-    if season is not None:
-        valid_months = _SEASON_MONTHS[season.upper()]
-        era5_time    = pd.DatetimeIndex(z_all.time.values)
-        keep         = era5_time.month.isin(valid_months)
-        z_all        = z_all.isel(time=keep)
-
-    if z_all.sizes['time'] == 0:
-        raise ValueError('No ERA5 verify days matched years / season filter.')
-
-    z_all = z_all.rename({'time': 'hindcast'})
-    grad  = (_ghgs_1d(z_all) if diag == 'GHGS' else _ghgn_1d(z_all)).mean('hindcast').compute()
-    print(f'era5_verify_gradient ({diag}): {z_all.sizes["hindcast"]} days  '
+    metric = _ghgs_1d if diag == 'GHGS' else _ghgn_1d
+    grad, n = _accumulate_era5_verify(
+        era5_dir, years, season, metric, f'era5_verify_gradient ({diag})')
+    print(f'era5_verify_gradient ({diag}): {n} days  '
           f'mean {float(grad.mean()):.2f} m/deg')
     return grad
 

@@ -294,13 +294,14 @@ def get_case_all(case_group):
             nrow_scale = 2
             ncol_scale = 2
             
-            dcases = { 'CAM7'        : 'f.e30.FLTHIST.CAM7.L58.000a',
-                       'CAM7-nozmpbl'        : 'f.e30.FLTHIST.CAM7.L58.001a',
-                       'CAM7-L32'    : 'f.e30.FLTHIST.CAM7.L32.000a',                                             
-                       'CAM7-nozmpbl-L48'    : 'f.e30.FLTHIST.CAM7.L48.001a',
-                       'CAM7-nozmpbl-L32'    : 'f.e30.FLTHIST.CAM7.L32.001a',
-                       'CAM7-CAM6-phys'   : 'f.e30.FHIST.CAM6-phys.L32.000a',
-                       'CAM6'        : 'f.e22.FHIST.f09_f09.CAM6.L32.000',
+            dcases = { 'C7-L58'        : 'f.e30.FLTHIST.CAM7.L58.000a',
+                       'C7-L48'        : 'f.e30.FLTHIST.CAM7.L48.000a',
+                       'C7-L32'    : 'f.e30.FLTHIST.CAM7.L32.000a',          
+                       'C7-noZMP-L58'        : 'f.e30.FLTHIST.CAM7.L58.001a',                  
+                       'C7-noZMP-L48'    : 'f.e30.FLTHIST.CAM7.L48.001a',
+                       'C7-noZMP-L32'    : 'f.e30.FLTHIST.CAM7.L32.001a',
+                       'C7-C6'   : 'f.e30.FHIST.CAM6-phys.L32.000a',
+                       'C6'        : 'f.e22.FHIST.f09_f09.CAM6.L32.000',
                      } 
     
 

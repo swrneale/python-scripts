@@ -36,8 +36,9 @@ do_cds = True
 
 #var_get = 'precip';  var_name = 'total_precipitation'
 #var_get = 'lhflx';  var_name = 'surface_latent_heat_flux'
-var_get = 'shflx';  var_name = 'surface_sensible_heat_flux'
-var_get = 't2';  var_name = '2m_temperature'
+#var_get = 'shflx';  var_name = 'surface_sensible_heat_flux'
+#var_get = 't2';  var_name = '2m_temperature'
+var_get = 'sst';  var_name = 'sea_surface_temperature'
 
 year0 = 1979
 year1 = 2013

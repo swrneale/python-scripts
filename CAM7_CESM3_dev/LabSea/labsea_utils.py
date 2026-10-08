@@ -37,10 +37,43 @@ from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 # Configuration
 # ---------------------------------------------------------------------------
 
-ARCHIVE_ROOT = "/glade/derecho/scratch/hannay/archive"
+ARCHIVE_ROOT        = "/glade/derecho/scratch/hannay/archive"
+ARCHIVE_ROOT_RNEALE = "/glade/derecho/scratch/rneale/archive"
 
 GPCP_FILE = "/glade/work/rneale/data/GPCP/gpcp.mon.mean.197901-201607.nc"
 
+# AMWG observational climatology archive.  Each dataset is stored as 12 files
+# named "{PREFIX}_{MM}_climo.nc" (MM = 01..12), each holding one monthly-mean
+# field on the dataset's native grid.  The registry below maps each CAM
+# variable to the AMWG source we want to overlay + the on-disk variable name
+# and any unit conversion needed to reach plot units (see VARS above).
+OBS_ROOT = "/glade/campaign/cgd/amp/amwg/amwg_data/obs_data"
+
+OBS_SOURCES = {
+    "ICEFRAC": {"tag": "HadISST", "prefix": "HadISST", "nc_var": "ICEFRAC",
+                "scale": 1.0, "offset": 0.0},
+    "SHFLX":   {"tag": "LARYEA",  "prefix": "LARYEA",  "nc_var": "SHFLX",
+                "scale": 1.0, "offset": 0.0},
+    "LHFLX":   {"tag": "WHOI",    "prefix": "WHOI",    "nc_var": "LHFLX",
+                "scale": 1.0, "offset": 0.0},
+    "TS":      {"tag": "ERAI",    "prefix": "ERAI",    "nc_var": "TS",
+                "scale": 1.0, "offset": -273.15},
+    "PRECT":   {"tag": "GPCP",    "prefix": "GPCP",    "nc_var": "PRECT",
+                "scale": 1.0, "offset": 0.0},   # AMWG file already mm/day
+    "CLDLOW":  {"tag": "ISCCP",   "prefix": "ISCCP",   "nc_var": "CLDLOW",
+                "scale": 1.0, "offset": 0.0},   # already %
+    "FSNS":    {"tag": "LARYEA",  "prefix": "LARYEA",  "nc_var": "FSNS",
+                "scale": 1.0, "offset": 0.0},
+    "FLNS":    {"tag": "LARYEA",  "prefix": "LARYEA",  "nc_var": "FLNS",
+                "scale": 1.0, "offset": 0.0},
+    "FSDS":    {"tag": "JRA25",   "prefix": "JRA25",   "nc_var": "FSDS",
+                "scale": 1.0, "offset": 0.0},
+    # RESSURF (net surface energy) has no single-source AMWG equivalent —
+    # the SH/LH and radiative components live in different datasets on
+    # different grids — so no obs overlay for it.
+}
+
+# Each entry may set an "archive_root" that overrides the module default.
 CASES = {
     "388": {
         "case_name": "b.e30_alpha09e_m.B1850C_MTso_Gris_Marbl.ne30_t233_wgx3.388",
@@ -54,11 +87,42 @@ CASES = {
         "color":     "firebrick",
         "kind":      "model",
     },
+    # CAM7 F-cases from /glade/derecho/scratch/rneale/archive — same run set
+    # used in labsea_dist_3hr.ipynb (h1i for 3-hourly, h0a for monthly here).
+    # These are atmosphere-only (F compsets), so no MOM ocean stream.
+    "cam7_001": {
+        "case_name":    "f.cam6_4_202.FHISTC_LTso_ne30.cam7.001",
+        "label":        "CAM7-001",
+        "color":        "black",
+        "kind":         "model",
+        "archive_root": ARCHIVE_ROOT_RNEALE,
+    },
+    "cam7_002": {
+        "case_name":    "f.cam6_4_202.FHISTC_LTso_ne30.cam7.002",
+        "label":        "CAM7-002",
+        "color":        "firebrick",
+        "kind":         "model",
+        "archive_root": ARCHIVE_ROOT_RNEALE,
+    },
+    "cam7_003": {
+        "case_name":    "f.cam6_4_202.FHISTC_LTso_ne30.cam7.003",
+        "label":        "CAM7-003",
+        "color":        "royalblue",
+        "kind":         "model",
+        "archive_root": ARCHIVE_ROOT_RNEALE,
+    },
     "GPCP": {
         "label":  "GPCP obs",
         "color":  "black",
         "kind":   "obs",
     },
+    # AMWG obs — one entry per source tag used in OBS_SOURCES.
+    "HadISST": {"label": "HadISST obs", "color": "black", "kind": "obs"},
+    "LARYEA":  {"label": "L-Y obs",     "color": "black", "kind": "obs"},
+    "WHOI":    {"label": "WHOI obs",    "color": "black", "kind": "obs"},
+    "ERAI":    {"label": "ERA-I obs",   "color": "black", "kind": "obs"},
+    "ISCCP":   {"label": "ISCCP obs",   "color": "black", "kind": "obs"},
+    "JRA25":   {"label": "JRA25 obs",   "color": "black", "kind": "obs"},
 }
 
 # Longitudes are 0-360 in the h0a files.
@@ -222,9 +286,13 @@ VARS["MLD"] = {
 }
 
 
+def _archive_root(run_id):
+    return CASES[run_id].get("archive_root", ARCHIVE_ROOT)
+
+
 def _hist_dir(run_id):
     case = CASES[run_id]["case_name"]
-    return os.path.join(ARCHIVE_ROOT, case, "atm", "hist")
+    return os.path.join(_archive_root(run_id), case, "atm", "hist")
 
 
 def list_h0a_files(run_id, year_range=None):
@@ -303,7 +371,15 @@ def load_run(run_id, vars_needed, year_range=None, parallel=False):
 
 def _mom_hist_dir(run_id):
     case = CASES[run_id]["case_name"]
-    return os.path.join(ARCHIVE_ROOT, case, MOM_HIST_SUBDIR)
+    return os.path.join(_archive_root(run_id), case, MOM_HIST_SUBDIR)
+
+
+def has_mom(run_id):
+    """True if the run's archive has any MOM6 history files (dir alone isn't
+    enough — F-cases keep an empty ocn/hist directory)."""
+    case = CASES[run_id]["case_name"]
+    return bool(glob.glob(os.path.join(
+        _mom_hist_dir(run_id), f"{case}.mom6.h.*.nc")))
 
 
 def load_mom_static(run_id):
@@ -461,6 +537,52 @@ def obs_regional_mean_ts(ds_obs, var, region):
     da = regional_slice(da, region)
     w = _area_weights(da)
     return da.weighted(w).mean(dim=("lat", "lon"))
+
+
+# ---------------------------------------------------------------------------
+# AMWG monthly-climatology obs (OBS_SOURCES / OBS_ROOT)
+# ---------------------------------------------------------------------------
+
+def obs_source(var):
+    """Return the OBS_SOURCES entry for `var`, or None if no obs is registered."""
+    return OBS_SOURCES.get(var)
+
+
+def load_obs_climo(var):
+    """Open the AMWG 12 monthly-climo files for `var` and return a DataArray
+    with dimensions (month, lat, lon) already in plot units.
+
+    Returns None if `var` has no registered obs source.
+    """
+    spec = obs_source(var)
+    if spec is None:
+        return None
+
+    das = []
+    for mm in range(1, 13):
+        fpath = os.path.join(OBS_ROOT, f"{spec['prefix']}_{mm:02d}_climo.nc")
+        d = xr.open_dataset(fpath, decode_times=False)
+        da = d[spec["nc_var"]]
+        # These files store one snapshot with a length-1 time axis — drop it.
+        if "time" in da.dims:
+            da = da.isel(time=0, drop=True)
+        das.append(da)
+
+    da = xr.concat(das, dim="month")
+    da = da.assign_coords(month=("month", np.arange(1, 13)))
+    da = da * spec["scale"] + spec["offset"]
+    da = da.rename(var)
+
+    # Ensure ascending latitude so downstream regional_slice(lat=slice(...)) works.
+    if "lat" in da.dims and float(da["lat"][0]) > float(da["lat"][-1]):
+        da = da.reindex(lat=da["lat"][::-1])
+    return da
+
+
+def obs_climo_seasonal_mean(da_climo, season):
+    """Composite mean of the season's months from a 12-month climatology DataArray."""
+    months = SEASONS[season]
+    return da_climo.sel(month=months).mean(dim="month")
 
 
 # ---------------------------------------------------------------------------
