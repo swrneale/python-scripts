@@ -1046,13 +1046,6 @@ def plot_wk_panel(results, case_labels, var_name='PRECT', lat_bound=15,
 
             W, F = np.meshgrid(w[iw0_:iw1_], f[if0_:if1_])
 
-            # Mask the single frequency bin immediately above DC on ratio panels.
-            # That bin (~period of n_day_win days) sits below the MJO range and
-            # is unreliable due to boundary effects in the frequency smoother.
-            if pt_key in ('sym_r', 'asym_r'):
-                f_min = f[if0_ + 2]   # 1 bin above DC, safely below MJO (~0.021 cpd)
-                plot_data = np.where(F < f_min, np.nan, plot_data)
-
             # For the ratio-to-background panels the levels are asymmetric
             # around 1 (fine below, progressively wider above).  Use a
             # BoundaryNorm so each level interval gets equal colorbar length —
