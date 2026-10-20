@@ -713,13 +713,89 @@ def load_model_data(case, var='PRECT', yr0=None, yr1=None, lat_bound=15,
     return x_np, lat, lon
 
 
+_CESM2LE_ROOT = ('/glade/campaign/collections/gdex/data/d651056'
+                 '/CESM2-LE/atm/proc/tseries')
+
+
+def _cesm2le_file_years(path):
+    """Return (start_year, end_year) from a CESM2-LE tseries filename, or (None, None).
+
+    Filename tail format: …{VAR}.YYYYMMDD-YYYYMMDD.nc
+    """
+    m = re.search(r'\.(\d{4})\d{4}-(\d{4})\d{4}\.nc$', path.name)
+    return (int(m.group(1)), int(m.group(2))) if m else (None, None)
+
+
+def load_cesm2le_data(member, var='PRECT', yr0=None, yr1=None, lat_bound=15,
+                      freq='daily', data_dir=_CESM2LE_ROOT):
+    """Load CESM2 Large Ensemble daily data from the GDEX campaign archive.
+
+    Files are 10-year chunks named:
+      {experiment}.f09_g17.{member}.cam.h1.{VAR}.{YYYYMMDD}-{YYYYMMDD}.nc
+    All files whose date range overlaps [yr0, yr1] are opened together so the
+    loader works transparently across decade boundaries.
+
+    Parameters
+    ----------
+    member   : member ID string, e.g. 'LE2-1001.001'
+    var      : variable name, e.g. 'PRECT', 'U850'
+    yr0, yr1 : year range (inclusive); None loads all available years
+    lat_bound: equatorial belt half-width (degrees)
+    freq     : 'daily' (only day_1 frequency is supported here)
+    data_dir : root of the CESM2-LE tseries tree
+
+    Returns
+    -------
+    x_np : (time, lat, lon) float32 in the file's native units
+           NB: PRECT is in m/s — pass vscale=86400*1000 for mm/day
+    lat  : 1D latitude array (S→N)
+    lon  : 1D longitude array
+    """
+    var_dir = Path(data_dir) / 'day_1' / var
+    all_files = sorted(var_dir.glob(f'*{member}*.{var}.*.nc'))
+    if not all_files:
+        raise FileNotFoundError(
+            f"No CESM2-LE files for member='{member}', var='{var}' in {var_dir}"
+        )
+
+    if yr0 is not None:
+        files = [f for f in all_files
+                 if (yrs := _cesm2le_file_years(f))[0] is not None
+                 and yrs[0] <= yr1 and yrs[1] >= yr0]
+    else:
+        files = all_files
+
+    if not files:
+        raise FileNotFoundError(
+            f"No CESM2-LE files for member='{member}', var='{var}', "
+            f"years {yr0}–{yr1} in {var_dir}"
+        )
+
+    print(f"  Opening {len(files)} of {len(all_files)} CESM2-LE files "
+          f"({member}, {var}, {yr0}–{yr1})...")
+    ds = xr.open_mfdataset(files, combine='by_coords',
+                            data_vars='minimal', coords='minimal',
+                            compat='override')
+    da = ds[var]
+    if yr0 is not None:
+        da = da.sel(time=slice(str(yr0), str(yr1)))
+    da = _ensure_s2n(da, lat_name='lat')
+    da = _lat_slice(da, lat_bound, lat_name='lat')
+    x_np = da.values.astype(np.float32)
+    lat  = da['lat'].values
+    lon  = da['lon'].values
+    ds.close()
+    return x_np, lat, lon
+
+
 def load_data(source, var='PRECT', resolution='1deg', freq='daily',
-              yr0=None, yr1=None, lat_bound=15, level_hPa=None, data_dir=None):
+              yr0=None, yr1=None, lat_bound=15, level_hPa=None, data_dir=None,
+              member=None):
     """Unified data loader dispatching to the appropriate loader.
 
     Parameters
     ----------
-    source     : 'TRMM', 'GPCP', 'ERA5', 'IMERG', or a CESM case string
+    source     : 'TRMM', 'GPCP', 'ERA5', 'IMERG', 'CESM2-LE', or a CESM3 case string
     var        : variable name; for ERA5 use short name ('tp', 'u', 'v')
     resolution : '1deg' or '0.25deg' (IMERG only)
     freq       : 'daily' or '3hourly' (affects spd)
@@ -727,6 +803,7 @@ def load_data(source, var='PRECT', resolution='1deg', freq='daily',
     lat_bound  : equatorial belt half-width
     level_hPa  : pressure level for 4D wind data
     data_dir   : override default data directory
+    member     : CESM2-LE member ID, e.g. 'LE2-1001.001' (required for CESM2-LE)
 
     Returns
     -------
@@ -760,8 +837,15 @@ def load_data(source, var='PRECT', resolution='1deg', freq='daily',
         kw = dict(data_dir=data_dir) if data_dir else {}
         x, lat, lon = load_trmm_gpcp_data(source, var=var, yr0=yr0, yr1=yr1,
                                             lat_bound=lat_bound, **kw)
+    elif source == 'CESM2-LE':
+        if member is None:
+            raise ValueError("source='CESM2-LE' requires a 'member' key in the case dict "
+                             "(e.g. member='LE2-1001.001')")
+        kw = dict(data_dir=data_dir) if data_dir else {}
+        x, lat, lon = load_cesm2le_data(member, var=var, yr0=yr0, yr1=yr1,
+                                         lat_bound=lat_bound, freq=freq, **kw)
     else:
-        # Assume it is a CESM/model case string
+        # Assume it is a CESM3/model case string
         kw = dict(data_dir=data_dir) if data_dir else {}
         x, lat, lon = load_model_data(source, var=var, yr0=yr0, yr1=yr1,
                                        lat_bound=lat_bound, **kw)
