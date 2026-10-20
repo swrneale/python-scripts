@@ -861,12 +861,13 @@ def add_dispersion_curves(ax, Apzwn, Afreq, plot_type='sym',
                               alpha=0.6, pad=0.5))
 
 
-def _make_ratio_cmap(levels, cmap_below='RdYlBu_r', cmap_above='gist_ncar',
-                     above_range=(0.50, 0.85), n_colors=256):
+def _make_ratio_cmap(levels, cmap_below='RdBu_r', cmap_above='YlOrRd',
+                     above_range=(0.0, 0.85), n_colors=256):
     """Blended colormap for ratio-to-background panels.
 
-    Below 1: blues from *cmap_below* (lower half of that colormap).
-    Above 1: greens→reds from *cmap_above* sampled over *above_range*.
+    Both halves use ColorBrewer colormaps flagged as colorblind-safe.
+    Below 1: blues from *cmap_below* (lower half of RdBu_r).
+    Above 1: yellow→orange→red from *cmap_above* (YlOrRd) over *above_range*.
     """
     levels = np.asarray(levels)
     n_intervals = len(levels) - 1
