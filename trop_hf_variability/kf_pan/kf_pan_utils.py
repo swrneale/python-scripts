@@ -7,6 +7,7 @@ References:
   Hayashi, Y. (1971), J. Meteor. Soc. Japan, 49, 125-128.
 """
 
+import re
 import numpy as np
 import scipy.signal
 import xarray as xr
@@ -461,6 +462,42 @@ def _ensure_s2n(da, lat_name='lat'):
     return da
 
 
+def load_imerg_daily_data(yr0, yr1, lat_bound=15, resolution='1deg',
+                           data_dir='/glade/work/rneale/data/IMERG'):
+    """Load IMERG daily precipitation from aggregated files.
+
+    Parameters
+    ----------
+    yr0, yr1    : start/end year (inclusive)
+    lat_bound   : symmetric equatorial lat bound
+    resolution  : '1deg' or '0.25deg'
+    data_dir    : directory containing IMERG_daily*{resolution}*.nc
+
+    Returns
+    -------
+    x_np  : (time, lat, lon) float32 array in mm/day
+    lat   : 1D latitude array (S→N)
+    lon   : 1D longitude array
+    """
+    fdir = Path(data_dir)
+    files = sorted(fdir.glob(f'IMERG_daily*{resolution}*.nc'))
+    if not files:
+        raise FileNotFoundError(
+            f"No IMERG daily files found in {fdir} matching resolution '{resolution}'"
+        )
+
+    ds = xr.open_mfdataset(files, combine='by_coords')
+    da = ds['precip']   # mm/day
+    da = da.sel(time=slice(f'{int(yr0):04d}', f'{int(yr1):04d}'))
+    da = _ensure_s2n(da, lat_name='lat')
+    da = _lat_slice(da, lat_bound, lat_name='lat')
+    x_np = da.values.astype(np.float32)
+    lat  = da['lat'].values
+    lon  = da['lon'].values
+    ds.close()
+    return x_np, lat, lon
+
+
 def load_imerg_data(yr0, yr1, lat_bound=15, resolution='1deg',
                     data_dir='/glade/derecho/scratch/rneale/IMERG/3hrly'):
     """Load IMERG 3-hourly precipitation data.
@@ -593,25 +630,40 @@ def load_trmm_gpcp_data(source, var='PRECT', yr0=None, yr1=None, lat_bound=15,
 _RNEALE_ARCHIVE = '/glade/derecho/scratch/rneale/archive'
 _HANNAY_ARCHIVE = '/glade/derecho/scratch/hannay/archive'
 
+def _h2a_file_year(path):
+    """Return the 4-digit year encoded in an h2a filename, or None if not parseable.
 
-def _make_dmeans_from_h2a(case, var, out_dir):
-    """Build a dmeans tseries file from h2a history files in hannay's archive.
+    h2a filenames follow the pattern: CASE.cam.h2a.YYYY-MM-DD-SSSSS.nc
+    """
+    m = re.search(r'\.h2a\.(\d{4})-', Path(path).name)
+    return int(m.group(1)) if m else None
 
-    h2a files already contain daily means (cell_methods='time: mean').
-    Concatenates all h2a files, extracts *var*, and writes to *out_dir*.
 
-    Returns
-    -------
-    Path to the newly written file.
+def _open_h2a_for_years(case, var, yr0, yr1):
+    """Open h2a files from hannay archive, filtered to [yr0-1, yr1+1] by filename year.
+
+    Uses ±1 year buffer so xarray's time selection can trim precisely at the
+    boundaries without risk of missing a file whose date straddles a year boundary.
+
+    Returns an open xr.Dataset (caller must close it).
     """
     hist_dir = Path(_HANNAY_ARCHIVE) / case / 'atm' / 'hist'
-    files = sorted(hist_dir.glob(f'{case}.cam.h2a.*.nc'))
+    all_files = sorted(hist_dir.glob(f'{case}.cam.h2a.*.nc'))
+    if not all_files:
+        raise FileNotFoundError(f"No h2a files for case={case} in {hist_dir}")
+
+    if yr0 is None:
+        files = all_files
+    else:
+        files = [f for f in all_files
+                 if (y := _h2a_file_year(f)) is not None and yr0 - 1 <= y <= yr1 + 1]
     if not files:
         raise FileNotFoundError(
-            f"No h2a files for case={case} in {hist_dir}"
+            f"No h2a files for case={case} in year range {yr0}-{yr1}"
         )
 
-    print(f"  Building dmeans tseries from {len(files)} h2a files in hannay archive...")
+    print(f"  Opening {len(files)} of {len(all_files)} h2a files "
+          f"(years {yr0}-{yr1} ±1 buffer)...")
     ds = xr.open_mfdataset(
         files,
         combine='by_coords',
@@ -624,16 +676,7 @@ def _make_dmeans_from_h2a(case, var, out_dir):
             f"Variable '{var}' not found in h2a files. "
             f"Available: {list(ds.data_vars)}"
         )
-
-    da = ds[[var]]   # keep as Dataset so to_netcdf preserves coords cleanly
-
-    out_path = Path(out_dir) / f'{case}_dmeans_ts_{var}.nc'
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    print(f"  Writing {out_path} ...")
-    da.to_netcdf(out_path)
-    ds.close()
-    print(f"  Done.")
-    return out_path
+    return ds
 
 
 def load_model_data(case, var='PRECT', yr0=None, yr1=None, lat_bound=15,
@@ -641,8 +684,8 @@ def load_model_data(case, var='PRECT', yr0=None, yr1=None, lat_bound=15,
     """Load CESM/CAM daily time-series data in the file's native units.
 
     Looks first in {data_dir}/{case}/tseries/ for pre-built dmeans files.
-    If none are found, builds one from h2a files in hannay's archive and
-    saves it to data_dir for future use.
+    If none are found, reads directly from h2a files in hannay's archive,
+    opening only the files whose filename year falls within the requested range.
 
     NB: no unit conversion is applied here — the caller is expected to pass
     ``vscale`` to ``compute_wk_spectrum`` (e.g. 86400*1000 for PRECT m/s → mm/day).
@@ -650,12 +693,11 @@ def load_model_data(case, var='PRECT', yr0=None, yr1=None, lat_bound=15,
     fdir = Path(data_dir) / case / 'tseries'
     candidates = sorted(fdir.glob(f'{case}_dmeans_ts_{var}*.nc'))
 
-    if not candidates:
-        # Fall back: build from h2a files in hannay's archive
-        out_file = _make_dmeans_from_h2a(case, var, fdir)
-        candidates = [out_file]
+    if candidates:
+        ds = xr.open_mfdataset(candidates, combine='by_coords')
+    else:
+        ds = _open_h2a_for_years(case, var, yr0, yr1)
 
-    ds = xr.open_mfdataset(candidates, combine='by_coords')
     da = ds[var]
     if yr0 is not None:
         # cftime indexes require 4-digit year strings ("0030", not "30")
@@ -695,9 +737,14 @@ def load_data(source, var='PRECT', resolution='1deg', freq='daily',
 
     if source == 'IMERG':
         kw = dict(data_dir=data_dir) if data_dir else {}
-        x, lat, lon = load_imerg_data(yr0, yr1, lat_bound=lat_bound,
-                                       resolution=resolution, **kw)
-        spd = 8  # IMERG is always 3-hourly
+        if freq == 'daily':
+            x, lat, lon = load_imerg_daily_data(yr0, yr1, lat_bound=lat_bound,
+                                                 resolution=resolution, **kw)
+            spd = 1
+        else:
+            x, lat, lon = load_imerg_data(yr0, yr1, lat_bound=lat_bound,
+                                           resolution=resolution, **kw)
+            spd = 8
     elif source == 'ERA5' and var in ('tp', 'precip', 'PRECT'):
         kw = dict(data_dir=data_dir) if data_dir else {}
         x, lat, lon = load_era5_prec_data(yr0, yr1, lat_bound=lat_bound, **kw)
@@ -812,13 +859,35 @@ def add_dispersion_curves(ax, Apzwn, Afreq, plot_type='sym',
                               alpha=0.6, pad=0.5))
 
 
+def _make_ratio_cmap(levels, cmap_below='RdYlBu_r', cmap_above='Spectral_r',
+                     above_range=(0.35, 0.95), n_colors=256):
+    """Blended colormap for ratio-to-background panels.
+
+    Below 1: blues from *cmap_below* (lower half of that colormap).
+    Above 1: greens→reds from *cmap_above* sampled over *above_range*.
+    """
+    levels = np.asarray(levels)
+    n_intervals = len(levels) - 1
+    n_below = int(np.searchsorted(levels, 1.0))   # intervals with upper bound <= 1
+    n_above = n_intervals - n_below
+
+    n_blue = round(n_colors * n_below / n_intervals)
+    n_warm = n_colors - n_blue
+
+    blue_colors = plt.get_cmap(cmap_below)(np.linspace(0.0, 0.5, n_blue))
+    warm_colors = plt.get_cmap(cmap_above)(np.linspace(*above_range, n_warm))
+
+    combined = np.vstack([blue_colors, warm_colors])
+    return mcolors.LinearSegmentedColormap.from_list('ratio_blend', combined, N=n_colors)
+
+
 def _wk_axes_setup(ax, min_wav, max_wav, max_freq, title=''):
     """Set common axis formatting for a WK panel."""
     ax.set_xlim(min_wav, max_wav)
     ax.set_ylim(0.0, max_freq)
     ax.set_xlabel('Zonal Wave Number', fontsize=8)
     ax.set_ylabel('Frequency (cpd)', fontsize=8)
-    ax.set_title(title, fontsize=9)
+    ax.set_title(title, fontsize=14)
     ax.tick_params(labelsize=7)
     freq_ticks = np.linspace(0.0, max_freq, 9)
     ax.set_yticks(freq_ticks)
@@ -971,9 +1040,9 @@ def plot_wk_panel(results, case_labels, var_name='PRECT', lat_bound=15,
             # 1.0 exactly at the colorbar's visual centre, and larger red values
             # progressively span the top end of the colormap.
             if pt_key in ('sym_r', 'asym_r'):
-                cmap_obj = plt.get_cmap(cm)
-                norm = mcolors.BoundaryNorm(lev, ncolors=cmap_obj.N, extend='both')
-                cf = ax.contourf(W, F, plot_data, levels=lev, cmap=cm,
+                ratio_cmap = _make_ratio_cmap(lev)
+                norm = mcolors.BoundaryNorm(lev, ncolors=ratio_cmap.N, extend='both')
+                cf = ax.contourf(W, F, plot_data, levels=lev, cmap=ratio_cmap,
                                  norm=norm, extend='both')
                 cbar = plt.colorbar(cf, ax=ax, shrink=0.8, pad=0.02,
                                     spacing='uniform', ticks=lev)
