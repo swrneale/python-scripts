@@ -862,7 +862,7 @@ def add_dispersion_curves(ax, Apzwn, Afreq, plot_type='sym',
 
 
 def _make_ratio_cmap(levels, cmap_below='RdYlBu_r', cmap_above='Spectral_r',
-                     above_range=(0.35, 0.95), n_colors=256):
+                     above_range=(0.60, 1.0), n_colors=256):
     """Blended colormap for ratio-to-background panels.
 
     Below 1: blues from *cmap_below* (lower half of that colormap).
