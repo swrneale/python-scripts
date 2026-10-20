@@ -306,12 +306,14 @@ def _accumulate_and_smooth(windows, spd, n_day_win):
         psumsym_nl[iw, i_f_lo:i_f_hi] = sl_c
 
     # ----- Background spectrum: heavy smoothing -----
+    # Low frequencies have the noisiest background (interannual/seasonal variance
+    # concentrated at a few wavenumbers), so they need the most smoothing.
     for it in range(i_dc + 1, N + 1):
         f_val = freq_arr[it]
         if f_val < 0.1:
-            n_passes = 5
+            n_passes = 40
         elif f_val < 0.2:
-            n_passes = 10
+            n_passes = 20
         elif f_val < 0.3:
             n_passes = 20
         else:
@@ -1042,6 +1044,14 @@ def plot_wk_panel(results, case_labels, var_name='PRECT', lat_bound=15,
             plot_data = data[iw0_:iw1_, if0_:if1_].T   # (freq, wave) for contourf
 
             W, F = np.meshgrid(w[iw0_:iw1_], f[if0_:if1_])
+
+            # Mask the first two positive-frequency bins on ratio panels.
+            # Near-DC estimates are unreliable due to boundary effects in the
+            # frequency-direction smoother and leakage from annual-cycle removal.
+            if pt_key in ('sym_r', 'asym_r'):
+                f_min = f[if0_ + 3]   # ~3 × freq resolution above DC
+                plot_data = np.where(F < f_min, np.nan, plot_data)
+
             # For the ratio-to-background panels the levels are asymmetric
             # around 1 (fine below, progressively wider above).  Use a
             # BoundaryNorm so each level interval gets equal colorbar length —
