@@ -878,6 +878,15 @@ def _make_ratio_cmap(levels, cmap_below='RdYlBu_r', cmap_above='Spectral_r',
     warm_colors = plt.get_cmap(cmap_above)(np.linspace(*above_range, n_warm))
 
     combined = np.vstack([blue_colors, warm_colors])
+
+    # Make the two intervals bracketing 1.0 transparent.
+    # BoundaryNorm distributes n_colors uniformly across n_intervals; interval i
+    # occupies color indices [floor(i*n_colors/n_intervals), ceil((i+1)*n_colors/n_intervals)).
+    # The two centre intervals are (n_below-1) and n_below.
+    i_lo = int(np.floor((n_below - 1) * n_colors / n_intervals))
+    i_hi = int(np.ceil((n_below + 1) * n_colors / n_intervals))
+    combined[i_lo:i_hi, 3] = 0.0   # alpha → transparent
+
     return mcolors.LinearSegmentedColormap.from_list('ratio_blend', combined, N=n_colors)
 
 
